@@ -1,0 +1,399 @@
+{
+  "id": "intro:第一份委托",
+  "title": "第一份委托",
+  "seed": "第一份委托",
+  "mode": "intro",
+  "schemaVersion": 1,
+  "rulesVersion": "prototype-1",
+  "generatorVersion": "0.1.2",
+  "rooms": [
+    {
+      "id": "bath",
+      "name": "卫生间",
+      "color": "#c9c9e8"
+    },
+    {
+      "id": "hall",
+      "name": "走廊",
+      "color": "#d5d8c2"
+    },
+    {
+      "id": "bedroom",
+      "name": "卧室",
+      "color": "#ede5b2"
+    }
+  ],
+  "outline": [
+    "0,0",
+    "1,0",
+    "2,0",
+    "3,0",
+    "4,0",
+    "0,1",
+    "1,1",
+    "2,1",
+    "3,1",
+    "4,1",
+    "0,2",
+    "1,2",
+    "2,2",
+    "3,2",
+    "4,2",
+    "0,3",
+    "1,3",
+    "2,3",
+    "3,3",
+    "4,3",
+    "0,4",
+    "1,4",
+    "2,4",
+    "3,4",
+    "4,4",
+    "5,0",
+    "6,0",
+    "7,0",
+    "8,0",
+    "5,1",
+    "6,1",
+    "7,1",
+    "8,1",
+    "5,2",
+    "6,2",
+    "7,2",
+    "8,2",
+    "5,3",
+    "6,3",
+    "7,3",
+    "8,3",
+    "5,4",
+    "6,4",
+    "7,4",
+    "8,4",
+    "9,0",
+    "10,0",
+    "11,0",
+    "9,1",
+    "10,1",
+    "11,1",
+    "9,2",
+    "10,2",
+    "11,2",
+    "9,3",
+    "10,3",
+    "11,3",
+    "9,4",
+    "10,4",
+    "11,4"
+  ],
+  "fixedEdges": {
+    "v:0:2": {
+      "kind": "window",
+      "fixed": true
+    },
+    "h:7:5": {
+      "kind": "window",
+      "fixed": true
+    }
+  },
+  "rules": [
+    {
+      "id": "r1",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "entry",
+      "value": 1,
+      "text": "全屋入户门 1扇",
+      "group": "global"
+    },
+    {
+      "id": "r2",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "door",
+      "value": 1,
+      "text": "全屋室内门 1扇",
+      "group": "global"
+    },
+    {
+      "id": "r3",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "window",
+      "value": 8,
+      "text": "全屋窗户 8扇",
+      "group": "global"
+    },
+    {
+      "id": "r4",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "open",
+      "value": 5,
+      "text": "全屋开放连接总长 5m",
+      "group": "global"
+    },
+    {
+      "id": "r5",
+      "op": "eq",
+      "type": "reachable",
+      "text": "所有房间直接或间接通向入户门",
+      "group": "global"
+    },
+    {
+      "id": "r6",
+      "op": "eq",
+      "type": "coverage",
+      "text": "规划完整建筑轮廓",
+      "group": "global"
+    },
+    {
+      "id": "r7",
+      "op": "eq",
+      "type": "area",
+      "roomId": "bath",
+      "value": 25,
+      "text": "面积 25㎡"
+    },
+    {
+      "id": "r8",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "bath",
+      "kind": "shower",
+      "value": 1,
+      "text": "淋浴 ×1"
+    },
+    {
+      "id": "r9",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "bath",
+      "kind": "toilet",
+      "value": 1,
+      "text": "马桶 ×1"
+    },
+    {
+      "id": "r10",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "bath",
+      "kind": "window",
+      "value": 3,
+      "text": "窗户 ×3"
+    },
+    {
+      "id": "r11",
+      "op": "eq",
+      "type": "area",
+      "roomId": "hall",
+      "value": 20,
+      "text": "面积 20㎡"
+    },
+    {
+      "id": "r12",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "hall",
+      "kind": "window",
+      "value": 2,
+      "text": "窗户 ×2"
+    },
+    {
+      "id": "r13",
+      "op": "eq",
+      "type": "area",
+      "roomId": "bedroom",
+      "value": 15,
+      "text": "面积 15㎡"
+    },
+    {
+      "id": "r14",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "bedroom",
+      "kind": "bed",
+      "value": 1,
+      "text": "双人床 ×1"
+    },
+    {
+      "id": "r15",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "bedroom",
+      "kind": "window",
+      "value": 3,
+      "text": "窗户 ×3"
+    },
+    {
+      "id": "r16",
+      "op": "eq",
+      "type": "fullOpen",
+      "roomId": "hall",
+      "targetRoomId": "bedroom",
+      "text": "与卧室相邻部分完全开放，无隔墙"
+    },
+    {
+      "id": "r17",
+      "op": "eq",
+      "type": "openLength",
+      "roomId": "hall",
+      "targetRoomId": "bedroom",
+      "value": 5,
+      "text": "与卧室开放连接 5m"
+    },
+    {
+      "id": "r18",
+      "op": "eq",
+      "type": "fullOpen",
+      "roomId": "bedroom",
+      "targetRoomId": "hall",
+      "text": "与走廊相邻部分完全开放，无隔墙"
+    },
+    {
+      "id": "r19",
+      "op": "eq",
+      "type": "openLength",
+      "roomId": "bedroom",
+      "targetRoomId": "hall",
+      "value": 5,
+      "text": "与走廊开放连接 5m"
+    }
+  ],
+  "reference": {
+    "cells": {
+      "0,0": "bath",
+      "1,0": "bath",
+      "2,0": "bath",
+      "3,0": "bath",
+      "4,0": "bath",
+      "0,1": "bath",
+      "1,1": "bath",
+      "2,1": "bath",
+      "3,1": "bath",
+      "4,1": "bath",
+      "0,2": "bath",
+      "1,2": "bath",
+      "2,2": "bath",
+      "3,2": "bath",
+      "4,2": "bath",
+      "0,3": "bath",
+      "1,3": "bath",
+      "2,3": "bath",
+      "3,3": "bath",
+      "4,3": "bath",
+      "0,4": "bath",
+      "1,4": "bath",
+      "2,4": "bath",
+      "3,4": "bath",
+      "4,4": "bath",
+      "5,0": "hall",
+      "6,0": "hall",
+      "7,0": "hall",
+      "8,0": "hall",
+      "5,1": "hall",
+      "6,1": "hall",
+      "7,1": "hall",
+      "8,1": "hall",
+      "5,2": "hall",
+      "6,2": "hall",
+      "7,2": "hall",
+      "8,2": "hall",
+      "5,3": "hall",
+      "6,3": "hall",
+      "7,3": "hall",
+      "8,3": "hall",
+      "5,4": "hall",
+      "6,4": "hall",
+      "7,4": "hall",
+      "8,4": "hall",
+      "9,0": "bedroom",
+      "10,0": "bedroom",
+      "11,0": "bedroom",
+      "9,1": "bedroom",
+      "10,1": "bedroom",
+      "11,1": "bedroom",
+      "9,2": "bedroom",
+      "10,2": "bedroom",
+      "11,2": "bedroom",
+      "9,3": "bedroom",
+      "10,3": "bedroom",
+      "11,3": "bedroom",
+      "9,4": "bedroom",
+      "10,4": "bedroom",
+      "11,4": "bedroom"
+    },
+    "edges": {
+      "v:9:0": {
+        "kind": "open"
+      },
+      "v:9:1": {
+        "kind": "open"
+      },
+      "v:9:2": {
+        "kind": "open"
+      },
+      "v:9:3": {
+        "kind": "open"
+      },
+      "v:9:4": {
+        "kind": "open"
+      },
+      "v:5:2": {
+        "kind": "door"
+      },
+      "h:5:0": {
+        "kind": "door"
+      },
+      "h:2:0": {
+        "kind": "window"
+      },
+      "h:2:5": {
+        "kind": "window"
+      },
+      "v:0:2": {
+        "kind": "window",
+        "fixed": true
+      },
+      "h:7:0": {
+        "kind": "window"
+      },
+      "h:7:5": {
+        "kind": "window",
+        "fixed": true
+      },
+      "h:10:0": {
+        "kind": "window"
+      },
+      "h:10:5": {
+        "kind": "window"
+      },
+      "v:12:2": {
+        "kind": "window"
+      }
+    },
+    "objects": [
+      {
+        "id": "bath-shower",
+        "kind": "shower",
+        "x": 1,
+        "y": 1,
+        "rotation": 0
+      },
+      {
+        "id": "bath-toilet",
+        "kind": "toilet",
+        "x": 2,
+        "y": 1,
+        "rotation": 0
+      },
+      {
+        "id": "bedroom-bed",
+        "kind": "bed",
+        "x": 10,
+        "y": 1,
+        "rotation": 0
+      }
+    ]
+  },
+  "brief": "先规划房间，再安放门窗和家具。蓝色斜纹窗已固定；公共边可用开放连接打通。"
+}

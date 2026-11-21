@@ -1,0 +1,983 @@
+{
+  "id": "standard:庭院来信",
+  "title": "住宅设计委托",
+  "seed": "庭院来信",
+  "mode": "standard",
+  "schemaVersion": 1,
+  "rulesVersion": "prototype-1",
+  "generatorVersion": "0.1.2",
+  "rooms": [
+    {
+      "id": "bath",
+      "name": "卫生间",
+      "color": "#c9c9e8"
+    },
+    {
+      "id": "living",
+      "name": "客厅",
+      "color": "#edc8c3"
+    },
+    {
+      "id": "dining",
+      "name": "餐厅",
+      "color": "#bdd9e7"
+    },
+    {
+      "id": "bedroom",
+      "name": "卧室",
+      "color": "#ede5b2"
+    },
+    {
+      "id": "hall",
+      "name": "走廊",
+      "color": "#d5d8c2"
+    },
+    {
+      "id": "kitchen",
+      "name": "厨房",
+      "color": "#bcdccd"
+    }
+  ],
+  "outline": [
+    "1,0",
+    "2,0",
+    "0,1",
+    "1,1",
+    "2,1",
+    "0,2",
+    "1,2",
+    "2,2",
+    "0,3",
+    "1,3",
+    "2,3",
+    "3,0",
+    "4,0",
+    "5,0",
+    "6,0",
+    "7,0",
+    "3,1",
+    "4,1",
+    "5,1",
+    "6,1",
+    "7,1",
+    "3,2",
+    "4,2",
+    "5,2",
+    "6,2",
+    "7,2",
+    "3,3",
+    "4,3",
+    "5,3",
+    "6,3",
+    "7,3",
+    "8,0",
+    "9,0",
+    "10,0",
+    "11,0",
+    "12,0",
+    "8,1",
+    "9,1",
+    "10,1",
+    "11,1",
+    "12,1",
+    "8,2",
+    "9,2",
+    "10,2",
+    "11,2",
+    "12,2",
+    "8,3",
+    "9,3",
+    "10,3",
+    "11,3",
+    "12,3",
+    "0,4",
+    "1,4",
+    "2,4",
+    "0,5",
+    "1,5",
+    "2,5",
+    "0,6",
+    "1,6",
+    "2,6",
+    "0,7",
+    "1,7",
+    "2,7",
+    "0,8",
+    "1,8",
+    "2,8",
+    "3,4",
+    "4,4",
+    "5,4",
+    "6,4",
+    "7,4",
+    "3,5",
+    "4,5",
+    "5,5",
+    "6,5",
+    "7,5",
+    "3,6",
+    "4,6",
+    "5,6",
+    "6,6",
+    "7,6",
+    "3,7",
+    "4,7",
+    "5,7",
+    "6,7",
+    "7,7",
+    "3,8",
+    "4,8",
+    "5,8",
+    "6,8",
+    "7,8",
+    "8,4",
+    "9,4",
+    "10,4",
+    "11,4",
+    "12,4",
+    "8,5",
+    "9,5",
+    "10,5",
+    "11,5",
+    "12,5",
+    "8,6",
+    "9,6",
+    "10,6",
+    "11,6",
+    "12,6",
+    "8,7",
+    "9,7",
+    "10,7",
+    "11,7",
+    "12,7",
+    "8,8",
+    "9,8",
+    "10,8",
+    "11,8",
+    "12,8"
+  ],
+  "fixedEdges": {
+    "h:5:0": {
+      "kind": "window",
+      "fixed": true
+    },
+    "h:10:0": {
+      "kind": "window",
+      "fixed": true
+    },
+    "v:13:4": {
+      "kind": "window",
+      "fixed": true
+    }
+  },
+  "rules": [
+    {
+      "id": "r1",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "entry",
+      "value": 1,
+      "text": "全屋入户门 1扇",
+      "group": "global"
+    },
+    {
+      "id": "r2",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "door",
+      "value": 4,
+      "text": "全屋室内门 4扇",
+      "group": "global"
+    },
+    {
+      "id": "r3",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "window",
+      "value": 17,
+      "text": "全屋窗户 17扇",
+      "group": "global"
+    },
+    {
+      "id": "r4",
+      "op": "eq",
+      "type": "globalCount",
+      "kind": "open",
+      "value": 5,
+      "text": "全屋开放连接总长 5m",
+      "group": "global"
+    },
+    {
+      "id": "r5",
+      "op": "eq",
+      "type": "reachable",
+      "text": "所有房间直接或间接通向入户门",
+      "group": "global"
+    },
+    {
+      "id": "r6",
+      "op": "eq",
+      "type": "coverage",
+      "text": "规划完整建筑轮廓",
+      "group": "global"
+    },
+    {
+      "id": "r7",
+      "op": "eq",
+      "type": "area",
+      "roomId": "bath",
+      "value": 11,
+      "text": "面积 11㎡"
+    },
+    {
+      "id": "r8",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "bath",
+      "kind": "shower",
+      "value": 1,
+      "text": "淋浴 ×1"
+    },
+    {
+      "id": "r9",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "bath",
+      "kind": "toilet",
+      "value": 1,
+      "text": "马桶 ×1"
+    },
+    {
+      "id": "r10",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "bath",
+      "kind": "window",
+      "value": 3,
+      "text": "窗户 ×3"
+    },
+    {
+      "id": "r11",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "bath",
+      "side": "N",
+      "kind": "window",
+      "value": 1,
+      "text": "北墙窗户 ×1"
+    },
+    {
+      "id": "r12",
+      "op": "eq",
+      "type": "adjacent",
+      "roomId": "bath",
+      "targetRoomId": "living",
+      "text": "必须与客厅相邻"
+    },
+    {
+      "id": "r13",
+      "op": "eq",
+      "type": "area",
+      "roomId": "living",
+      "value": 20,
+      "text": "面积 20㎡"
+    },
+    {
+      "id": "r14",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "living",
+      "kind": "sofa",
+      "value": 1,
+      "text": "双人沙发 ×1"
+    },
+    {
+      "id": "r15",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "living",
+      "kind": "chair",
+      "value": 1,
+      "text": "单人沙发 ×1"
+    },
+    {
+      "id": "r16",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "living",
+      "kind": "window",
+      "value": 1,
+      "text": "窗户 ×1"
+    },
+    {
+      "id": "r17",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "living",
+      "side": "N",
+      "kind": "window",
+      "value": 1,
+      "text": "北墙窗户 ×1"
+    },
+    {
+      "id": "r18",
+      "op": "eq",
+      "type": "adjacent",
+      "roomId": "living",
+      "targetRoomId": "bath",
+      "text": "必须与卫生间相邻"
+    },
+    {
+      "id": "r19",
+      "op": "eq",
+      "type": "area",
+      "roomId": "dining",
+      "value": 20,
+      "text": "面积 20㎡"
+    },
+    {
+      "id": "r20",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "dining",
+      "kind": "table",
+      "value": 1,
+      "text": "餐桌餐椅 ×1"
+    },
+    {
+      "id": "r21",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "dining",
+      "kind": "window",
+      "value": 4,
+      "text": "窗户 ×4"
+    },
+    {
+      "id": "r22",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "dining",
+      "side": "N",
+      "kind": "window",
+      "value": 2,
+      "text": "北墙窗户 ×2"
+    },
+    {
+      "id": "r23",
+      "op": "eq",
+      "type": "adjacent",
+      "roomId": "dining",
+      "targetRoomId": "living",
+      "text": "必须与客厅相邻"
+    },
+    {
+      "id": "r24",
+      "op": "eq",
+      "type": "area",
+      "roomId": "bedroom",
+      "value": 15,
+      "text": "面积 15㎡"
+    },
+    {
+      "id": "r25",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "bedroom",
+      "kind": "bed",
+      "value": 1,
+      "text": "双人床 ×1"
+    },
+    {
+      "id": "r26",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "bedroom",
+      "kind": "window",
+      "value": 3,
+      "text": "窗户 ×3"
+    },
+    {
+      "id": "r27",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "bedroom",
+      "side": "W",
+      "kind": "window",
+      "value": 2,
+      "text": "西墙窗户 ×2"
+    },
+    {
+      "id": "r28",
+      "op": "eq",
+      "type": "adjacent",
+      "roomId": "bedroom",
+      "targetRoomId": "bath",
+      "text": "必须与卫生间相邻"
+    },
+    {
+      "id": "r29",
+      "op": "eq",
+      "type": "area",
+      "roomId": "hall",
+      "value": 25,
+      "text": "面积 25㎡"
+    },
+    {
+      "id": "r30",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "hall",
+      "kind": "window",
+      "value": 2,
+      "text": "窗户 ×2"
+    },
+    {
+      "id": "r31",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "hall",
+      "side": "S",
+      "kind": "window",
+      "value": 2,
+      "text": "南墙窗户 ×2"
+    },
+    {
+      "id": "r32",
+      "op": "eq",
+      "type": "adjacent",
+      "roomId": "hall",
+      "targetRoomId": "living",
+      "text": "必须与客厅相邻"
+    },
+    {
+      "id": "r33",
+      "op": "eq",
+      "type": "area",
+      "roomId": "kitchen",
+      "value": 25,
+      "text": "面积 25㎡"
+    },
+    {
+      "id": "r34",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "kitchen",
+      "kind": "stove",
+      "value": 1,
+      "text": "炉具 ×1"
+    },
+    {
+      "id": "r35",
+      "op": "eq",
+      "type": "objectCount",
+      "roomId": "kitchen",
+      "kind": "sink",
+      "value": 1,
+      "text": "洗碗池 ×1"
+    },
+    {
+      "id": "r36",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "kitchen",
+      "kind": "window",
+      "value": 4,
+      "text": "窗户 ×4"
+    },
+    {
+      "id": "r37",
+      "op": "eq",
+      "type": "boundaryCount",
+      "roomId": "kitchen",
+      "side": "E",
+      "kind": "window",
+      "value": 2,
+      "text": "东墙窗户 ×2"
+    },
+    {
+      "id": "r38",
+      "op": "eq",
+      "type": "adjacent",
+      "roomId": "kitchen",
+      "targetRoomId": "dining",
+      "text": "必须与餐厅相邻"
+    },
+    {
+      "id": "r39",
+      "op": "eq",
+      "type": "fullOpen",
+      "roomId": "bedroom",
+      "targetRoomId": "hall",
+      "text": "与走廊相邻部分完全开放，无隔墙"
+    },
+    {
+      "id": "r40",
+      "op": "eq",
+      "type": "openLength",
+      "roomId": "bedroom",
+      "targetRoomId": "hall",
+      "value": 5,
+      "text": "与走廊开放连接 5m"
+    },
+    {
+      "id": "r41",
+      "op": "eq",
+      "type": "fullOpen",
+      "roomId": "hall",
+      "targetRoomId": "bedroom",
+      "text": "与卧室相邻部分完全开放，无隔墙"
+    },
+    {
+      "id": "r42",
+      "op": "eq",
+      "type": "openLength",
+      "roomId": "hall",
+      "targetRoomId": "bedroom",
+      "value": 5,
+      "text": "与卧室开放连接 5m"
+    },
+    {
+      "id": "r43",
+      "op": "eq",
+      "type": "direction",
+      "group": "bedroom",
+      "source": {
+        "kind": "bed",
+        "roomId": "bedroom"
+      },
+      "target": {
+        "kind": "sink",
+        "roomId": "kitchen"
+      },
+      "direction": "E",
+      "value": 1,
+      "forbidden": false,
+      "text": "双人床东侧需有厨房的洗碗池 ×1"
+    },
+    {
+      "id": "r44",
+      "op": "eq",
+      "type": "direction",
+      "group": "living",
+      "source": {
+        "kind": "sofa",
+        "roomId": "living"
+      },
+      "target": {
+        "kind": "table",
+        "roomId": "dining"
+      },
+      "direction": "E",
+      "value": 1,
+      "forbidden": false,
+      "text": "双人沙发东侧需有餐厅的餐桌餐椅 ×1"
+    },
+    {
+      "id": "r45",
+      "op": "eq",
+      "type": "direction",
+      "group": "kitchen",
+      "source": {
+        "kind": "sink",
+        "roomId": "kitchen"
+      },
+      "target": {
+        "kind": "bed",
+        "roomId": "bedroom"
+      },
+      "direction": "W",
+      "value": 1,
+      "forbidden": false,
+      "text": "洗碗池西侧需有卧室的双人床 ×1"
+    },
+    {
+      "id": "r46",
+      "op": "eq",
+      "type": "direction",
+      "group": "bath",
+      "source": {
+        "kind": "shower",
+        "roomId": "bath"
+      },
+      "target": {
+        "kind": "window"
+      },
+      "direction": "S",
+      "value": 1,
+      "forbidden": false,
+      "text": "淋浴南侧需有窗户（不限房间） ×1"
+    },
+    {
+      "id": "r47",
+      "op": "eq",
+      "type": "direction",
+      "group": "bath",
+      "source": {
+        "kind": "shower",
+        "roomId": "bath"
+      },
+      "target": {
+        "kind": "sofa",
+        "roomId": "living"
+      },
+      "direction": "E",
+      "value": 1,
+      "forbidden": false,
+      "text": "淋浴东侧需有客厅的双人沙发 ×1"
+    },
+    {
+      "id": "r48",
+      "op": "eq",
+      "type": "direction",
+      "group": "dining",
+      "source": {
+        "kind": "table",
+        "roomId": "dining"
+      },
+      "target": {
+        "kind": "window"
+      },
+      "direction": "S",
+      "value": 1,
+      "forbidden": false,
+      "text": "餐桌餐椅南侧需有窗户（不限房间） ×1"
+    },
+    {
+      "id": "r49",
+      "op": "eq",
+      "type": "direction",
+      "group": "dining",
+      "source": {
+        "kind": "table",
+        "roomId": "dining"
+      },
+      "target": {
+        "kind": "window"
+      },
+      "direction": "N",
+      "value": 1,
+      "forbidden": false,
+      "text": "餐桌餐椅北侧需有窗户（不限房间） ×1"
+    },
+    {
+      "id": "r50",
+      "op": "eq",
+      "type": "direction",
+      "group": "living",
+      "source": {
+        "kind": "sofa",
+        "roomId": "living"
+      },
+      "target": {
+        "kind": "shower",
+        "roomId": "bath"
+      },
+      "direction": "E",
+      "value": 0,
+      "forbidden": true,
+      "text": "双人沙发东侧不能有卫生间的淋浴"
+    },
+    {
+      "id": "r51",
+      "op": "eq",
+      "type": "direction",
+      "group": "bath",
+      "source": {
+        "kind": "shower",
+        "roomId": "bath"
+      },
+      "target": {
+        "kind": "stove",
+        "roomId": "kitchen"
+      },
+      "direction": "S",
+      "value": 0,
+      "forbidden": true,
+      "text": "淋浴南侧不能有厨房的炉具"
+    },
+    {
+      "id": "r52",
+      "op": "eq",
+      "type": "direction",
+      "group": "bath",
+      "source": {
+        "kind": "toilet",
+        "roomId": "bath"
+      },
+      "target": {
+        "kind": "sink",
+        "roomId": "kitchen"
+      },
+      "direction": "N",
+      "value": 0,
+      "forbidden": true,
+      "text": "马桶北侧不能有厨房的洗碗池"
+    }
+  ],
+  "reference": {
+    "cells": {
+      "1,0": "bath",
+      "2,0": "bath",
+      "0,1": "bath",
+      "1,1": "bath",
+      "2,1": "bath",
+      "0,2": "bath",
+      "1,2": "bath",
+      "2,2": "bath",
+      "0,3": "bath",
+      "1,3": "bath",
+      "2,3": "bath",
+      "3,0": "living",
+      "4,0": "living",
+      "5,0": "living",
+      "6,0": "living",
+      "7,0": "living",
+      "3,1": "living",
+      "4,1": "living",
+      "5,1": "living",
+      "6,1": "living",
+      "7,1": "living",
+      "3,2": "living",
+      "4,2": "living",
+      "5,2": "living",
+      "6,2": "living",
+      "7,2": "living",
+      "3,3": "living",
+      "4,3": "living",
+      "5,3": "living",
+      "6,3": "living",
+      "7,3": "living",
+      "8,0": "dining",
+      "9,0": "dining",
+      "10,0": "dining",
+      "11,0": "dining",
+      "12,0": "dining",
+      "8,1": "dining",
+      "9,1": "dining",
+      "10,1": "dining",
+      "11,1": "dining",
+      "12,1": "dining",
+      "8,2": "dining",
+      "9,2": "dining",
+      "10,2": "dining",
+      "11,2": "dining",
+      "12,2": "dining",
+      "8,3": "dining",
+      "9,3": "dining",
+      "10,3": "dining",
+      "11,3": "dining",
+      "12,3": "dining",
+      "0,4": "bedroom",
+      "1,4": "bedroom",
+      "2,4": "bedroom",
+      "0,5": "bedroom",
+      "1,5": "bedroom",
+      "2,5": "bedroom",
+      "0,6": "bedroom",
+      "1,6": "bedroom",
+      "2,6": "bedroom",
+      "0,7": "bedroom",
+      "1,7": "bedroom",
+      "2,7": "bedroom",
+      "0,8": "bedroom",
+      "1,8": "bedroom",
+      "2,8": "bedroom",
+      "3,4": "hall",
+      "4,4": "hall",
+      "5,4": "hall",
+      "6,4": "hall",
+      "7,4": "hall",
+      "3,5": "hall",
+      "4,5": "hall",
+      "5,5": "hall",
+      "6,5": "hall",
+      "7,5": "hall",
+      "3,6": "hall",
+      "4,6": "hall",
+      "5,6": "hall",
+      "6,6": "hall",
+      "7,6": "hall",
+      "3,7": "hall",
+      "4,7": "hall",
+      "5,7": "hall",
+      "6,7": "hall",
+      "7,7": "hall",
+      "3,8": "hall",
+      "4,8": "hall",
+      "5,8": "hall",
+      "6,8": "hall",
+      "7,8": "hall",
+      "8,4": "kitchen",
+      "9,4": "kitchen",
+      "10,4": "kitchen",
+      "11,4": "kitchen",
+      "12,4": "kitchen",
+      "8,5": "kitchen",
+      "9,5": "kitchen",
+      "10,5": "kitchen",
+      "11,5": "kitchen",
+      "12,5": "kitchen",
+      "8,6": "kitchen",
+      "9,6": "kitchen",
+      "10,6": "kitchen",
+      "11,6": "kitchen",
+      "12,6": "kitchen",
+      "8,7": "kitchen",
+      "9,7": "kitchen",
+      "10,7": "kitchen",
+      "11,7": "kitchen",
+      "12,7": "kitchen",
+      "8,8": "kitchen",
+      "9,8": "kitchen",
+      "10,8": "kitchen",
+      "11,8": "kitchen",
+      "12,8": "kitchen"
+    },
+    "edges": {
+      "v:3:4": {
+        "kind": "open"
+      },
+      "v:3:5": {
+        "kind": "open"
+      },
+      "v:3:6": {
+        "kind": "open"
+      },
+      "v:3:7": {
+        "kind": "open"
+      },
+      "v:3:8": {
+        "kind": "open"
+      },
+      "v:3:2": {
+        "kind": "door"
+      },
+      "h:5:4": {
+        "kind": "door"
+      },
+      "h:10:4": {
+        "kind": "door"
+      },
+      "v:8:2": {
+        "kind": "door"
+      },
+      "h:3:9": {
+        "kind": "door"
+      },
+      "h:2:0": {
+        "kind": "window"
+      },
+      "v:0:2": {
+        "kind": "window"
+      },
+      "v:1:0": {
+        "kind": "window"
+      },
+      "h:5:0": {
+        "kind": "window",
+        "fixed": true
+      },
+      "h:10:0": {
+        "kind": "window",
+        "fixed": true
+      },
+      "h:8:0": {
+        "kind": "window"
+      },
+      "v:13:2": {
+        "kind": "window"
+      },
+      "v:13:0": {
+        "kind": "window"
+      },
+      "h:1:9": {
+        "kind": "window"
+      },
+      "v:0:6": {
+        "kind": "window"
+      },
+      "v:0:4": {
+        "kind": "window"
+      },
+      "h:6:9": {
+        "kind": "window"
+      },
+      "h:4:9": {
+        "kind": "window"
+      },
+      "h:10:9": {
+        "kind": "window"
+      },
+      "h:8:9": {
+        "kind": "window"
+      },
+      "v:13:6": {
+        "kind": "window"
+      },
+      "v:13:4": {
+        "kind": "window",
+        "fixed": true
+      }
+    },
+    "objects": [
+      {
+        "id": "bath-shower",
+        "kind": "shower",
+        "x": 1,
+        "y": 1,
+        "rotation": 0
+      },
+      {
+        "id": "bath-toilet",
+        "kind": "toilet",
+        "x": 2,
+        "y": 1,
+        "rotation": 0
+      },
+      {
+        "id": "living-sofa",
+        "kind": "sofa",
+        "x": 4,
+        "y": 1,
+        "rotation": 0
+      },
+      {
+        "id": "living-chair",
+        "kind": "chair",
+        "x": 4,
+        "y": 2,
+        "rotation": 0
+      },
+      {
+        "id": "dining-table",
+        "kind": "table",
+        "x": 9,
+        "y": 1,
+        "rotation": 0
+      },
+      {
+        "id": "bedroom-bed",
+        "kind": "bed",
+        "x": 1,
+        "y": 5,
+        "rotation": 0
+      },
+      {
+        "id": "kitchen-stove",
+        "kind": "stove",
+        "x": 9,
+        "y": 5,
+        "rotation": 0
+      },
+      {
+        "id": "kitchen-sink",
+        "kind": "sink",
+        "x": 10,
+        "y": 5,
+        "rotation": 0
+      }
+    ]
+  },
+  "brief": "房间之间的需求彼此关联。先读完条件，再决定分区；同一份委托可以有多个合法布局。"
+}
