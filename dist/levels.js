@@ -1,10 +1,13 @@
 import {createResidentialPlan} from './residential.js';
+import {unlockedFurnitureAt,furnitureIntroducedAt} from './progression.js';
 import {generationQualityErrors} from './generation-quality.js';
 import {walkabilityErrors,footprint,neighbors,edgeCells,boundaryKind,ENGINE_VERSION,OBJECTS,cellKey,point,allEdges,edgeInfo,edgeParts,sharedEdges,roomEdges,objectRoom,directionCounts,evaluateLayout,validateLevel,clone} from './engine.js';
-export const GENERATOR_VERSION='0.2.0';
+export const GENERATOR_VERSION='0.3.0';
+// Catalogue changes do not need to reshuffle the established spatial seed stream.
+const SEED_STREAM_VERSION='0.2.0';
 const ROLES={
   living:{name:'客厅',color:'#edc8c3',objects:['sofa','chair']},bedroom:{name:'卧室',color:'#ede5b2',objects:['bed']},
-  bath:{name:'卫生间',color:'#c9c9e8',objects:['shower','toilet']},kitchen:{name:'厨房',color:'#bcdccd',objects:['stove','sink']},
+  bath:{name:'卫生间',color:'#c9c9e8',objects:['shower','toilet'],advancedObjects:['bathtub']},kitchen:{name:'厨房',color:'#bcdccd',objects:['stove','sink']},
   dining:{name:'餐厅',color:'#bdd9e7',objects:['table']},hall:{name:'走廊',color:'#d5d8c2',objects:[]},
   entry:{name:'玄关',color:'#cde0c0',objects:[]},master:{name:'主卧',color:'#e8dfad',objects:['bed']},
   guest:{name:'客卧',color:'#e8c9b1',objects:['singleBed','wardrobe']},game:{name:'游戏室',color:'#c6dfe1',objects:['chair']}
@@ -12,11 +15,11 @@ const ROLES={
 const SIDES={N:'北',S:'南',W:'西',E:'东'};
 export function randomFromSeed(seed){let h=2166136261;for(const c of String(seed)){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return()=>{h+=0x6D2B79F5;let t=h;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
 function shuffled(items,rand){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function placeReferenceFurniture(level,layout,rand){
+function placeReferenceFurniture(level,layout,rand,furnitureByRoom){
   const reserved=new Set(Object.entries(layout.edges).filter(([,e])=>['door','open'].includes(e.kind)).flatMap(([key])=>edgeCells(key)));
   for(const room of level.rooms){
     const own=Object.keys(layout.cells).filter(c=>layout.cells[c]===room.id);
-    const kinds=[...ROLES[room.id].objects].sort((a,b)=>OBJECTS[b].w*OBJECTS[b].h-OBJECTS[a].w*OBJECTS[a].h);
+    const kinds=[...furnitureByRoom[room.id]].sort((a,b)=>OBJECTS[b].w*OBJECTS[b].h-OBJECTS[a].w*OBJECTS[a].h);
     const candidates=kinds.map(kind=>own.flatMap(c=>{const[x,y]=point(c);return [0,90,180,270].map(rotation=>({id:`${room.id}-${kind}`,kind,x,y,rotation}));}).filter(o=>footprint(o).every(c=>layout.cells[c]===room.id&&!reserved.has(c))).map(o=>({o,rank:footprint(o).reduce((sum,c)=>sum+neighbors(c).filter(n=>layout.cells[n]!==room.id).length,0)+rand()*.8})).sort((a,b)=>b.rank-a.rank).map(item=>item.o));
     const pack=index=>{
       if(index===kinds.length)return true;
@@ -32,9 +35,12 @@ function placeReferenceFurniture(level,layout,rand){
     if(!pack(0))throw new Error(`${room.name}缺少家具与通行空间`);
   }
 }
-function makeLevel(seed,mode) {
-  const rand=randomFromSeed(`${GENERATOR_VERSION}:${mode}:${seed}`),basic=mode==='intro',complex=mode==='complex';
+function makeLevel(seed,mode,{chapter}={}) {
+  const rand=randomFromSeed(`${SEED_STREAM_VERSION}:${mode}:${seed}`),basic=mode==='intro',complex=mode==='complex';
   const plan=createResidentialPlan(mode,rand);
+  const allowed=new Set(chapter===undefined?Object.keys(OBJECTS):unlockedFurnitureAt(chapter));
+  const furnitureByRoom=Object.fromEntries(plan.roomIds.map(id=>[id,[...ROLES[id].objects,...(!basic?ROLES[id].advancedObjects||[]:[])].filter(kind=>allowed.has(kind))]));
+  const newFurniture=chapter===undefined?[]:furnitureIntroducedAt(chapter).filter(kind=>Object.values(furnitureByRoom).some(kinds=>kinds.includes(kind)));
   const level={id:`${mode}:${seed}`,title:basic?'第一份委托':complex?'复杂住宅委托':'住宅设计委托',seed:String(seed),mode,schemaVersion:1,rulesVersion:ENGINE_VERSION,generatorVersion:GENERATOR_VERSION,rooms:plan.roomIds.map(id=>({id,name:ROLES[id].name,color:ROLES[id].color})),outline:Object.keys(plan.cells),fixedEdges:{},rules:[],planning:{templateId:plan.templateId,orientation:plan.orientation}};
   const layout={cells:plan.cells,edges:{},objects:[]};
   const names=Object.fromEntries(level.rooms.map(r=>[r.id,r.name]));
@@ -49,7 +55,7 @@ function makeLevel(seed,mode) {
     }else layout.edges[edges[Math.floor(edges.length/2)]]={kind:'door'};
   }
   const entry=plan.entryEdge;layout.edges[entry]={kind:'door'};
-  placeReferenceFurniture(level,layout,rand);
+  placeReferenceFurniture(level,layout,rand,furnitureByRoom);
   for(const room of level.rooms){
     for(const side of ['N','S','W','E']){
       const edges=roomEdges(level,layout,room.id,side).filter(key=>edgeInfo(level,layout,key).outer&&key!==entry);
@@ -71,7 +77,7 @@ function makeLevel(seed,mode) {
   for(const room of level.rooms){
     const own=Object.keys(layout.cells).filter(c=>layout.cells[c]===room.id);
     add({type:'area',roomId:room.id,value:own.length,text:`面积 ${own.length}㎡`});
-    for(const kind of ROLES[room.id].objects)add({type:'objectCount',roomId:room.id,kind,value:1,text:`${OBJECTS[kind].name} ×1`});
+    for(const kind of furnitureByRoom[room.id])add({type:'objectCount',roomId:room.id,kind,value:1,text:`${OBJECTS[kind].name} ×1`});
     const n=roomEdges(level,layout,room.id).filter(k=>layout.edges[k]?.kind==='window').length;
     add({type:'boundaryCount',roomId:room.id,kind:'window',value:n,text:n?`窗户 ×${n}`:'不能有窗户'});
     if(!basic){
@@ -105,18 +111,20 @@ function makeLevel(seed,mode) {
       }
     }
     const unique=items=>[...new Map(items.map(r=>[JSON.stringify([r.source,r.target,r.direction]),r])).values()];
-    const positive=shuffled(unique(candidates.filter(r=>!r.forbidden)),rand).slice(0,complex?16:7);
-    const negative=shuffled(unique(candidates.filter(r=>r.forbidden)),rand).slice(0,complex?8:3);
+    const prioritized=items=>unique([...newFurniture.flatMap(kind=>items.filter(r=>r.source.kind===kind).slice(0,1)),...items]);
+    const positive=prioritized(shuffled(unique(candidates.filter(r=>!r.forbidden)),rand)).slice(0,complex?16:7);
+    const negative=prioritized(shuffled(unique(candidates.filter(r=>r.forbidden)),rand)).slice(0,complex?8:3);
     for(const rule of [...positive,...negative])add(rule);
   }
   level.reference=layout;
+  if(chapter!==undefined)level.progression={newFurniture};
   const quality=generationQualityErrors(level);if(quality.length)throw new Error('生成质量未通过：'+quality.join('；'));
   level.brief=basic?'先规划房间，再安放门窗和家具。蓝色斜纹窗已固定；公共边可用开放连接打通。':'房间之间的需求彼此关联。先读完条件，再决定分区；同一份委托可以有多个合法布局。';
   return level;
 }
-export function generateLevel(seed='初次委托',mode='intro') {
+export function generateLevel(seed='初次委托',mode='intro',options={}) {
   if(!['intro','standard','complex'].includes(mode))throw new Error('未知任务类型');
-  const level=makeLevel(String(seed).slice(0,80),mode),errors=validateLevel(level);
+  const level=makeLevel(String(seed).slice(0,80),mode,options),errors=validateLevel(level);
   if(errors.length)throw new Error(errors.join('；'));
   const check=evaluateLayout(level,level.reference);
   if(!check.complete)throw new Error('生成任务未通过验证：'+[...check.errors,...check.results.filter(r=>!r.ok).map(r=>r.text)].join('；'));
@@ -166,11 +174,10 @@ export function paletteForLevel(level,tutorialStage=5){
   return {roomIds,boundaries,objectKinds:kinds};
 }
 export function createCampaignLevel(chapter){
+  unlockedFurnitureAt(chapter);
   if(chapter===1)return createOpeningLevel();
-  const mode=chapter===2?'intro':chapter<9?'standard':'complex',level=generateLevel('委托-'+chapter,mode);
-  const allowed=['bed',...(chapter>=3?['sofa']:[]),...(chapter>=4?['chair']:[]),...(chapter>=5?['toilet']:[]),...(chapter>=6?['stove']:[]),...(chapter>=7?['sink']:[]),...(chapter>=8?['shower']:[]),...(chapter>=9?['singleBed','wardrobe']:[]),...(chapter>=10?['table']:[])];
-  level.reference.objects=level.reference.objects.filter(o=>allowed.includes(o.kind));
-  level.rules=level.rules.filter(r=>r.type==='objectCount'?allowed.includes(r.kind):r.type==='direction'?chapter>=4&&allowed.includes(r.source.kind)&&(r.target.kind==='window'||allowed.includes(r.target.kind)):true);
+  const mode=chapter===2?'intro':chapter<9?'standard':'complex',level=generateLevel('委托-'+chapter,mode,{chapter});
+  if(chapter<4)level.rules=level.rules.filter(r=>r.type!=='direction');
   level.id='story:'+chapter;level.chapter=chapter;level.title='第'+chapter+'份委托';level.seed=level.title;
   if(!evaluateLayout(level,level.reference).complete)throw new Error('委托参考解未通过验证');
   return level;
