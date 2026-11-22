@@ -67,13 +67,18 @@
 
 .rating-total{font:13px system-ui;color:#8b7b43;display:block;margin:1px 0 8px}.rating-summary{margin:5px 0}.rating-deductions{list-style:none;margin:8px 0 0;padding:8px 0 0;border-top:1px solid #d7d7c5;font-size:13px;color:#8e795f;line-height:1.8}.rating-deductions li{margin:2px 0}.rating-clean{font-size:13px;color:#809076;margin:6px 0}.rating-unknown{font-size:13px;color:#8c806b;line-height:1.7}
 
-/* Requirements sit over the continuous map, as seen in the original demo. */
+/* Paper grid, then requirements, then the editable plan. */
 .paper{display:block;background-image:none}
 .drawing-area{position:relative;width:100%;height:100%;background:transparent}
 .paper-top{position:absolute;top:0;right:0;left:0;z-index:4;pointer-events:none}
 .paper-actions{pointer-events:auto}
-.canvas-wrap{width:100%;height:100%;padding-top:0}
-.requirements{position:absolute;z-index:3;left:15px;top:43px;bottom:45px;width:290px;max-width:calc(100% - 30px);padding:3px 2px 18px 12px;background:transparent;border:0;overscroll-behavior:contain;scrollbar-gutter:stable;direction:rtl}
+.canvas-wrap{width:100%;height:100%;padding-top:0;isolation:isolate}
+#paper-grid,.map-input,#blueprint{position:absolute;inset:0;width:100%;height:100%}
+.map-input{z-index:0;touch-action:none;cursor:crosshair}
+#paper-grid{z-index:0;pointer-events:none}
+#blueprint{z-index:2;pointer-events:none}
+#blueprint .plan-content{pointer-events:auto}
+.requirements{position:absolute;z-index:1;left:15px;top:43px;bottom:45px;width:290px;max-width:calc(100% - 30px);padding:3px 2px 18px 12px;background:transparent;border:0;overscroll-behavior:contain;scrollbar-gutter:stable;direction:rtl}
 .requirements>*{direction:ltr;text-align:left}
 .requirements[hidden]{display:none}
 .requirements-heading{padding:0 0 12px}

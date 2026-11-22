@@ -83,8 +83,8 @@ function groupsHTML(check){
   }).join('');
 }
 function boardHTML(){
-  let svg='<defs><pattern id="meter-grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#9b9b7c" stroke-opacity=".32" stroke-width=".018"/></pattern><pattern id="direction-hatch" width=".2" height=".2" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0v.2" stroke="#b95b50" stroke-width=".045" opacity=".5"/></pattern></defs>';
-  if(settings.showGrid)svg+='<rect id="map-grid" fill="url(#meter-grid)"/>';
+  let svg='<defs><pattern id="direction-hatch" width=".2" height=".2" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0v.2" stroke="#b95b50" stroke-width=".045" opacity=".5"/></pattern></defs>';
+  const paperGrid=settings.showGrid?'<svg id="paper-grid" aria-hidden="true" viewBox="0 0 24 14"><defs><pattern id="paper-meter-grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#9b9b7c" stroke-opacity=".32" stroke-width=".018"/></pattern></defs><rect id="map-grid" fill="url(#paper-meter-grid)"/></svg>':'';
   for(const cell of level.outline){const[x,y]=point(cell),room=level.rooms.find(r=>r.id===layout.cells[cell]);svg+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${room?.color||'#faf8ee'}"/>`;}
   // Grid remains visible above room fills.
   if(settings.showGrid)for(const cell of level.outline){const[x,y]=point(cell);svg+=`<rect x="${x}" y="${y}" width="1" height="1" fill="none" stroke="#838674" stroke-opacity=".16" stroke-width=".015"/>`;}
@@ -119,7 +119,7 @@ function boardHTML(){
   const selected=layout.objects.find(o=>o.id===selectedId);
   if(selected){const r=bounds(footprint(selected));svg+=`<rect class="selected-outline" x="${r.x-.06}" y="${r.y-.06}" width="${r.w+.12}" height="${r.h+.12}" rx=".06" fill="none" stroke="#b4803e" stroke-width=".06" stroke-dasharray=".13 .07" pointer-events="none"/>`;}
   svg+='<g id="drawing-preview" pointer-events="none"></g>';
-  return `<svg id="blueprint" viewBox="0 0 24 14" role="img" aria-label="户型图纸，当前使用${toolLabel()}工具"><g>${svg}</g></svg>`;
+  return `${paperGrid}<div class="map-input" aria-hidden="true"></div><svg id="blueprint" viewBox="0 0 24 14" role="img" aria-label="户型图纸，当前使用${toolLabel()}工具"><g class="plan-content">${svg}</g></svg>`;
 }
 function toolLabel(){return {room:'画房间',eraser:'橡皮',hand:'抓手',door:'门',window:'窗',open:'开放连接',object:OBJECTS[selectedObject].name}[tool];}
 function selectedFurniture(){return layout.objects.find(o=>o.id===selectedId);}
@@ -287,7 +287,7 @@ function syncView(){
   const b=bounds(level.outline);
   if(viewNeedsFit){if(window.matchMedia('(max-width:600px), (max-width:1100px) and (max-height:600px)').matches)zoom=clampZoom(Math.min(1,(r.width-36)/(b.w*GRID_PIXELS),(r.height-64)/(b.h*GRID_PIXELS)));viewNeedsFit=false;}
   const v=cameraBox(r,{x:b.x+b.w/2,y:b.y+b.h/2},pan,zoom);
-  svg.setAttribute('viewBox',`${v.x} ${v.y} ${v.w} ${v.h}`);
+  for(const layer of [svg,$('#paper-grid')])layer?.setAttribute('viewBox',`${v.x} ${v.y} ${v.w} ${v.h}`);
   const grid=$('#map-grid');if(grid)for(const [key,value]of Object.entries({x:v.x,y:v.y,width:v.w,height:v.h}))grid.setAttribute(key,value);
   const labelSize=Math.max(.29,14/(GRID_PIXELS*zoom));
   svg.style.setProperty('--room-font',labelSize+'px');svg.style.setProperty('--area-font',Math.max(.25,12/(GRID_PIXELS*zoom))+'px');
@@ -355,11 +355,12 @@ function finish(event){
   if(result?.error){gameAudio.play('error');toast(result.error);render();}else if(result?.layout)commit(result.layout,current.mode);else render();
 }
 function bindBoard(){
-  const svg=$('#blueprint'),touches=new Map();let pinch=null,waitForLift=false;
+  const svg=$('#blueprint'),surface=svg.closest('.canvas-wrap'),touches=new Map();let pinch=null,waitForLift=false;
+  const isInterface=target=>!!target.closest('.requirements,button,.tutorial-anchor,.range-explanation,.portrait-hint');
   const touchPoints=()=>[...touches.values()].slice(0,2);
-  svg.addEventListener('contextmenu',event=>event.preventDefault());
-  svg.addEventListener('pointerdown',event=>{
-    if(phone||modal||event.button!==0&&event.button!==1&&event.button!==2)return;
+  surface.addEventListener('contextmenu',event=>{if(!isInterface(event.target))event.preventDefault();});
+  surface.addEventListener('pointerdown',event=>{
+    if(isInterface(event.target)||phone||modal||event.button!==0&&event.button!==1&&event.button!==2)return;
     if(event.pointerType==='touch'){
       touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
       if(touches.size===2){const r=svg.getBoundingClientRect();pinch=beginTouchCamera(touchPoints(),pan,zoom,{x:r.x+r.width/2,y:r.y+r.height/2});waitForLift=true;drag=null;hoverPoint=null;$('#drawing-preview').innerHTML='';svg.classList.add('panning');svg.setPointerCapture(event.pointerId);event.preventDefault();return;}
@@ -386,23 +387,36 @@ function bindBoard(){
     if(['door','window','open'].includes(mode))drag.edges.add(closestEdge(p));
     svg.setPointerCapture(event.pointerId);event.preventDefault();previewAt(p);
   });
-  svg.addEventListener('pointermove',event=>{if(event.pointerType==='touch'){
+  surface.addEventListener('pointermove',event=>{if(!drag&&isInterface(event.target)){hoverPoint=null;$('#drawing-preview').innerHTML='';return;}if(event.pointerType==='touch'){
     if(touches.has(event.pointerId))touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
     if(pinch&&touches.size>=2){const next=updateTouchCamera(pinch,touchPoints());pan=next.pan;zoom=next.zoom;queueView();return;}
     if(waitForLift)return;
   }if(drag?.mode==='pan'){movePan(event);return;}const p=svgPoint(event);if(drag)previewAt(p);else if(tool==='object'){hoverPoint=p;showPlacementPreview(p);}});
-  svg.addEventListener('pointerleave',()=>{if(!drag){hoverPoint=null;$('#drawing-preview').innerHTML='';}});
-  svg.addEventListener('pointerup',event=>{
+  surface.addEventListener('pointerleave',()=>{if(!drag){hoverPoint=null;$('#drawing-preview').innerHTML='';}});
+  surface.addEventListener('pointerup',event=>{
     if(event.pointerType==='touch'){
       touches.delete(event.pointerId);
       if(waitForLift){pinch=null;drag=null;svg.classList.remove('panning');if(!touches.size)waitForLift=false;return;}
     }
     finish(event);
   });
-  svg.addEventListener('pointercancel',()=>{touches.clear();pinch=null;waitForLift=false;drag=null;svg.classList.remove('panning');render();});
-  svg.addEventListener('lostpointercapture',()=>{if(drag?.mode==='pan'){drag=null;svg.classList.remove('panning');}});
-  svg.addEventListener('auxclick',event=>{if(event.button===1)event.preventDefault();});
-  svg.addEventListener('wheel',event=>{if(phone||modal||drag)return;event.preventDefault();setZoom(zoom*Math.exp(-event.deltaY*.0015),{x:event.clientX,y:event.clientY});},{passive:false});
+  surface.addEventListener('pointercancel',event=>{if(!touches.has(event.pointerId)&&!drag&&!pinch)return;touches.clear();pinch=null;waitForLift=false;drag=null;svg.classList.remove('panning');render();});
+  surface.addEventListener('lostpointercapture',()=>{if(drag?.mode==='pan'){drag=null;svg.classList.remove('panning');}});
+  surface.addEventListener('auxclick',event=>{if(event.button===1)event.preventDefault();});
+  surface.addEventListener('wheel',event=>{
+    if(phone||modal||drag)return;
+    if(event.target.closest('.tutorial-anchor,.range-explanation,.portrait-hint,.zoom-controls,.requirements-toggle'))return;
+    const list=$('.requirements'),r=list?.getBoundingClientRect();
+    // List scrolling wins inside its rectangle even when the plan is above it.
+    if(list&&!list.hidden&&r&&event.clientX>=r.left&&event.clientX<=r.right&&event.clientY>=r.top&&event.clientY<=r.bottom){
+      event.preventDefault();
+      const unit=event.deltaMode===1?20:event.deltaMode===2?list.clientHeight:1;
+      list.scrollTop+=event.deltaY*unit;
+      return;
+    }
+    if(isInterface(event.target))return;
+    event.preventDefault();setZoom(zoom*Math.exp(-event.deltaY*.0015),{x:event.clientX,y:event.clientY});
+  },{passive:false});
 }
 function changeVolume(event){const key=event.target.dataset.volume;if(!['musicVolume','effectsVolume'].includes(key))return false;settings[key]=Number(event.target.value)/100;gameAudio.update(settings);const output=document.querySelector(`[data-volume-value="${key}"]`);if(output)output.textContent=event.target.value+'%';persist();return true;}
 document.addEventListener('input',changeVolume);
