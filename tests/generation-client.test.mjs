@@ -4,8 +4,10 @@ import {readFileSync} from 'node:fs';
 import {createCommissionGenerator} from '../dist/generation-client.js';
 import {evaluateLayout,validateLevel} from '../dist/engine.js';
 import {createCampaignLevel} from '../dist/levels.js';
-const bank=JSON.parse(readFileSync(new URL('../dist/data/fallback-levels.json',import.meta.url),'utf8'));
-const fetcher=async()=>({ok:true,json:async()=>bank});
+const index=JSON.parse(readFileSync(new URL('../dist/data/fallback-index.json',import.meta.url),'utf8'));
+const levels=new Map(index.entries.map(entry=>[entry.file,JSON.parse(readFileSync(new URL('../dist/data/'+entry.file,import.meta.url),'utf8'))]));
+const bank={levels:[...levels.values()]};
+const fetcher=async url=>({ok:true,json:async()=>url.pathname.endsWith('fallback-index.json')?index:levels.get('levels/'+url.pathname.split('/').at(-1))});
 
 test('已验题库全部通过同一判定，首次新家具与新户型有匹配的回退题',()=>{
   for(const level of bank.levels){assert.deepEqual(validateLevel(level),[]);assert.equal(evaluateLayout(level,level.reference).complete,true);}
@@ -39,4 +41,10 @@ test('旧阶段不依赖Worker也可继续，不能误把legacy结构排除出�
   const generate=createCommissionGenerator({WorkerClass:null,fetcher});
   const level=await generate(2);assert.equal(level.chapter,2);assert.deepEqual(level.reference.objects.map(o=>o.kind),['bed']);
   const advanced=await generate(80);assert.equal(advanced.difficulty.tier,5);
+});
+
+test('回退只请求小索引和单个快照，不下载完整题库',async()=>{
+  const requested=[];const generate=createCommissionGenerator({WorkerClass:null,fetcher:async url=>{requested.push(url.pathname);return fetcher(url);}});
+  await generate(12);assert.equal(requested.length,2);assert.match(requested[0],/fallback-index\.json$/);assert.match(requested[1],/levels\/12\.json$/);
+  const largest=Math.max(...[...levels.values()].map(l=>Buffer.byteLength(JSON.stringify(l))));assert.ok(largest<25000);assert.ok(Buffer.byteLength(JSON.stringify(index))<20000);
 });

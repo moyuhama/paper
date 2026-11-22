@@ -6,13 +6,24 @@ import {CONTENT_VERSION} from './catalog.js';
 function verified(level){return !validateLevel(level).length&&evaluateLayout(level,level.reference).complete;}
 export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher=globalThis.fetch,timeoutMs=1500}={}){
   let fallbackPromise;
+  const indexURL=new URL('./data/fallback-index.json',import.meta.url);
+  async function json(url){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
+    try{const response=await fetcher(url,{signal:controller.signal,cache:'no-cache'});if(!response.ok)throw new Error('委托内容暂时不可用');return await response.json();}
+    finally{clearTimeout(timer);}
+  }
   async function fallback(chapter,avoid){
-    fallbackPromise??=fetcher(new URL('./data/fallback-levels.json',import.meta.url)).then(response=>{if(!response.ok)throw new Error('委托内容暂时不可用');return response.json();}).catch(error=>{fallbackPromise=null;throw error;});
+    fallbackPromise??=json(indexURL).catch(error=>{fallbackPromise=null;throw error;});
     const bank=await fallbackPromise;if(bank.contentVersion!==CONTENT_VERSION)throw new Error('委托内容版本不一致，请刷新后重试');
     const allowed=new Set(unlockedFurnitureAt(chapter)),required=furnitureIntroducedAt(chapter);
-    const pool=bank.levels.filter(level=>(chapter<=37?level.chapter===chapter:level.chapter>=30&&level.difficulty?.tier===difficultyFor(chapter).tier)&&(level.chapter<12||!level.planning?.shapeFamily||SHAPE_UNLOCKS[level.planning.shapeFamily]<=chapter)&&!avoid.includes(level.generationFingerprint)&&level.reference.objects.every(o=>allowed.has(o.kind))&&required.every(kind=>level.reference.objects.some(o=>o.kind===kind)));
-    const source=pool.find(verified);if(!source)throw new Error('暂时没有适合的新委托，请稍后重试');
-    const level=clone(source);level.id='story:'+chapter;level.chapter=chapter;level.title='第'+chapter+'份委托';level.progression={newFurniture:required};level.generation={source:'verified-fallback'};return level;
+    const pool=bank.entries.filter(entry=>(chapter<=37?entry.chapter===chapter:entry.chapter>=30&&entry.tier===difficultyFor(chapter).tier)&&(entry.chapter<12||!entry.family||SHAPE_UNLOCKS[entry.family]<=chapter)&&!avoid.includes(entry.fingerprint));
+    for(const entry of pool.slice(0,3)){
+      if(!/^levels\/\d+\.json$/.test(entry.file))continue;
+      const source=await json(new URL(entry.file,indexURL));
+      if(!source||source.generationFingerprint!==entry.fingerprint||source.contentVersion!==bank.contentVersion||!verified(source)||!source.reference.objects.every(o=>allowed.has(o.kind))||!required.every(kind=>source.reference.objects.some(o=>o.kind===kind)))continue;
+      const level=clone(source);level.id='story:'+chapter;level.chapter=chapter;level.title='第'+chapter+'份委托';level.progression={newFurniture:required};level.generation={source:'verified-fallback'};return level;
+    }
+    throw new Error('暂时没有适合的新委托，请稍后重试');
   }
   return async(chapter,{avoidFingerprints=[]}={})=>{
     unlockedFurnitureAt(chapter);
