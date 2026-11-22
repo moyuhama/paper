@@ -9,8 +9,8 @@ import {levelFingerprint} from '../dist/generation-policy.js';
 import {roomArea,cellArea} from '../dist/geometry.js';
 import {furnitureSVG,objectIcon,cellSVG} from '../dist/drawing-assets.js';
 
-test('22类家具全部有真实图形，新物件分批进入需求、参考解和可选物件',()=>{
-  assert.equal(Object.keys(OBJECTS).length,22);
+test('31类家具全部有真实图形，新物件分批进入需求、参考解和可选物件',()=>{
+  assert.equal(Object.keys(OBJECTS).length,31);
   for(const item of FURNITURE_PROGRESSION.filter(item=>item.chapter>=12)){
     const level=createCampaignLevel(item.chapter),palette=paletteForLevel(level);
     assert.ok(palette.objectKinds.includes(item.kind),item.kind);assert.ok(level.progression.newFurniture.includes(item.kind));

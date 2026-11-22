@@ -1,5 +1,5 @@
 import {configureInstances,addInstanceRule,instanceName} from './instances.js';
-import {referenceUseSpaceOK,addSpatialRules} from './spatial-generation.js';
+import {createUseSpacePlan,referenceUseSpaceOK,addSpatialRules} from './spatial-generation.js';
 import {addFurnitureInstances,mechanicsAt,mechanicsIntroducedAt} from './mechanics.js';
 import {describeStructure,repetitionScore} from './puzzle-diversity.js';
 import {SHAPE_UNLOCKS,SHAPE_INTRODUCTIONS} from './shape-catalog.js';
@@ -11,7 +11,7 @@ import {createResidentialPlan} from './residential.js';
 import {unlockedFurnitureAt,furnitureIntroducedAt} from './progression.js';
 import {generationQualityErrors} from './generation-quality.js';
 import {walkabilityErrors,crossesFixedWall,footprint,neighbors,edgeCells,boundaryKind,ENGINE_VERSION,OBJECTS,cellKey,point,allEdges,edgeInfo,edgeParts,sharedEdges,roomEdges,objectRoom,directionCounts,evaluateLayout,validateLevel,clone} from './engine.js';
-export const GENERATOR_VERSION='0.7.0';
+export const GENERATOR_VERSION='0.8.0';
 // Catalogue changes do not need to reshuffle the established spatial seed stream.
 const SEED_STREAM_VERSION='0.2.0';
 const ROLES=ROOM_CATALOG;
@@ -46,6 +46,7 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
   const furnitureByRoom=addFurnitureInstances(roomFurniture(plan,{chapter,rand,expanded,basic}),{chapter:chapter||0,rand});
   const newFurniture=chapter===undefined?[]:furnitureIntroducedAt(chapter).filter(kind=>Object.values(furnitureByRoom).some(kinds=>kinds.includes(kind)));
   const level={id:`${mode}:${seed}`,title:basic?'第一份委托':complex?'复杂住宅委托':'住宅设计委托',seed:String(seed),mode,...(chapter!==undefined?{chapter}:{}),schemaVersion:plan.geometry?2:1,geometry:plan.geometry,rulesVersion:ENGINE_VERSION,generatorVersion:GENERATOR_VERSION,rooms:plan.roomIds.map(id=>({id,name:ROLES[id].name,color:ROLES[id].color})),outline:Object.keys(plan.cells),fixedEdges:{},rules:[],contentVersion:CONTENT_VERSION,fixedAreas:plan.fixedAreas||{},fixedWalls:plan.fixedWalls||[],planning:{templateId:plan.templateId,shapeFamily:plan.shapeFamily||'legacy',orientation:plan.orientation}};
+  level.useSpacePlan=createUseSpacePlan(furnitureByRoom,chapter||0,rand);
   const layout={cells:plan.cells,edges:{},objects:[]};
   const names=Object.fromEntries(level.rooms.map(r=>[r.id,r.name]));
   const add=rule=>level.rules.push({id:`r${level.rules.length+1}`,op:'eq',...rule});
@@ -101,7 +102,7 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
   for(const connection of plan.connections)if(connection.kind==='door'){
     add({type:'connectionCount',roomId:connection.a,targetRoomId:connection.b,kind:'door',value:1,text:`通向${names[connection.b]}的室内门 ×1`});
   }
-  for(const id of ['bedroom','master','guest','bath','kitchen','game','study','store','laundry','workshop'])if(plan.roomIds.includes(id)&&!(basic&&id==='bedroom')){
+  for(const id of ['bedroom','master','guest','bath','kitchen','game','study','store','laundry','workshop','music','gym'])if(plan.roomIds.includes(id)&&!(basic&&id==='bedroom')){
     add({type:'boundaryCount',roomId:id,kind:'door',value:1,text:'室内门 ×1'});
     add({type:'boundaryCount',roomId:id,kind:'open',value:0,text:'不设开放连接'});
   }
@@ -131,6 +132,7 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
   addInstanceRule(level,add);
   addSpatialRules(level,add,{chapter:chapter||0,deadline});
   if(expanded)selectClues(level,chapter||30,{deadline});
+  delete level.useSpacePlan;
   const quality=generationQualityErrors(level);if(quality.length)throw new Error('生成质量未通过：'+quality.join('；'));
   if(expanded)level.planning.label=SHAPE_NAMES[plan.shapeFamily];
   level.brief=basic?'先规划房间，再安放门窗和家具。蓝色斜纹窗已固定；公共边可用开放连接打通。':'房间之间的需求彼此关联。先读完条件，再决定分区；同一份委托可以有多个合法布局。';

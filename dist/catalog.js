@@ -1,4 +1,4 @@
-export const CONTENT_VERSION='residential-4';
+export const CONTENT_VERSION='residential-5';
 const definitions=[
   ['bed','双人床',2,2,1],['singleBed','单人床',1,2,9],
   ['sofa','双人沙发',2,1,3],['chair','单人沙发',1,1,4],
@@ -8,9 +8,13 @@ const definitions=[
   ['fridge','冰箱',1,1,12],['coffeeTable','茶几',2,1,14],['tvStand','电视柜',2,1,16],
   ['bedsideTable','床头柜',1,1,18],['desk','书桌',2,1,20],['bookcase','书柜',1,2,22],
   ['basin','洗手台',1,1,24],['washer','洗衣机',1,1,26],['shoeCabinet','鞋柜',1,2,28],
-  ['workbench','工作台',3,1,30],['sectional','L形沙发',3,2,48]
+  ['workbench','工作台',3,1,30],['sectional','L形沙发',3,2,48],
+  ['cornerDesk','转角书桌',2,2,50],['bar','吧台',2,1,52],['vanity','梳妆台',2,1,54],
+  ['entryBench','玄关长凳',2,1,56],['utilityCabinet','家政柜',1,2,58],['dryingRack','晾衣架',2,1,60],
+  ['piano','钢琴',3,1,62],['treadmill','跑步机',1,2,64],['gameTable','游戏桌',2,2,66]
 ];
-export const OBJECTS=Object.freeze(Object.fromEntries(definitions.map(([id,name,w,h,chapter])=>[id,Object.freeze({name,w,h,chapter,...(id==='sectional'?{front:'S',shape:[[0,0],[1,0],[2,0],[0,1]]}:{}),...(['sofa','chair','desk','workbench','fridge','washer','wardrobe','bookcase'].includes(id)?{front:'S'}:{})})])));
+const secondBatch=new Set(['sectional','cornerDesk','bar','vanity','entryBench','utilityCabinet','dryingRack','piano','treadmill','gameTable']);
+export const OBJECTS=Object.freeze(Object.fromEntries(definitions.map(([id,name,w,h,chapter])=>[id,Object.freeze({name,w,h,chapter,...(secondBatch.has(id)?{pack:'second'}:{}),...({sectional:{front:'S',shape:[[0,0],[1,0],[2,0],[0,1]]},cornerDesk:{front:'S',shape:[[0,0],[1,0],[0,1]]},bar:{front:'S'},vanity:{front:'S'},entryBench:{front:'S'},utilityCabinet:{front:'E'},piano:{front:'S'},treadmill:{front:'N'}}[id]||{}),...(['sofa','chair','desk','workbench','fridge','washer','wardrobe','bookcase'].includes(id)?{front:'S'}:{})})])));
 export const ROOM_CATALOG={
   living:{name:'客厅',color:'#edc8c3',objects:['sofa','chair']},bedroom:{name:'卧室',color:'#ede5b2',objects:['bed']},
   bath:{name:'卫生间',color:'#c9c9e8',objects:['shower','toilet'],advancedObjects:['bathtub']},kitchen:{name:'厨房',color:'#bcdccd',objects:['stove','sink']},
@@ -19,16 +23,23 @@ export const ROOM_CATALOG={
   guest:{name:'客卧',color:'#e8c9b1',objects:['singleBed','wardrobe']},game:{name:'游戏室',color:'#c6dfe1',objects:['chair']},
   study:{name:'书房',color:'#c8dce4',objects:['desk']},laundry:{name:'家政间',color:'#c3ded3',objects:['washer']},
   store:{name:'储物间',color:'#d5cfbe',objects:['wardrobe']},workshop:{name:'工作室',color:'#ddcdbc',objects:['workbench']},
+  music:{name:'琴房',color:'#d4d1e5',objects:['piano']},gym:{name:'健身房',color:'#c9ded3',objects:['treadmill']},
   balcony:{name:'阳台',color:'#d3e4bc',objects:[]}
 };
 export function roomFurniture(plan,{chapter,rand,expanded=false,basic=false}={}){
   const unlocked=kind=>chapter===undefined||OBJECTS[kind].chapter<=chapter;
   if(!expanded)return Object.fromEntries(plan.roomIds.map(id=>[id,[...ROOM_CATALOG[id].objects,...(!basic?ROOM_CATALOG[id].advancedObjects||[]:[])].filter(unlocked)]));
+  const active=kind=>chapter!==undefined&&unlocked(kind);
   const introduced=new Set(Object.keys(OBJECTS).filter(k=>OBJECTS[k].chapter===chapter));
   const bathing=rand()>.5?'shower':'bathtub';
   const seating=chapter>=48&&(chapter===48||rand()>.5)?'sectional':'sofa';
-  const cores={living:[seating],master:['bed'],bedroom:['bed'],guest:['singleBed'],bath:['toilet',bathing],kitchen:['stove','sink'],dining:['table'],study:['desk'],store:['wardrobe'],laundry:['washer'],workshop:['workbench'],entry:[],hall:[],balcony:[]};
-  const optional={living:[introduced.has('coffeeTable')?'coffeeTable':introduced.has('tvStand')?'tvStand':rand()>.5?'coffeeTable':'tvStand'],master:['bedsideTable'],bedroom:['bedsideTable'],guest:['wardrobe'],bath:['basin'],kitchen:['fridge'],study:['bookcase','chair'],entry:['shoeCabinet'],workshop:['chair']};
+  const dining=active('bar')&&(introduced.has('bar')||rand()>.6)?'bar':'table';
+  const study=active('cornerDesk')&&(introduced.has('cornerDesk')||rand()>.5)?'cornerDesk':'desk';
+  const bedroomExtra=active('vanity')&&(introduced.has('vanity')||rand()>.5)?'vanity':'bedsideTable';
+  const entryExtra=active('entryBench')&&(introduced.has('entryBench')||rand()>.5)?'entryBench':'shoeCabinet';
+  const utilityExtra=active('dryingRack')&&(introduced.has('dryingRack')||rand()>.5)?'dryingRack':'utilityCabinet';
+  const cores={living:[seating],master:['bed'],bedroom:['bed'],guest:['singleBed'],bath:['toilet',bathing],kitchen:['stove','sink'],dining:[dining],study:[study],music:['piano'],gym:['treadmill'],game:['gameTable'],store:['wardrobe'],laundry:['washer'],workshop:['workbench'],entry:[],hall:[],balcony:[]};
+  const optional={living:[introduced.has('coffeeTable')?'coffeeTable':introduced.has('tvStand')?'tvStand':rand()>.5?'coffeeTable':'tvStand'],master:[bedroomExtra],bedroom:[bedroomExtra],guest:['wardrobe'],bath:['basin'],kitchen:['fridge'],study:['bookcase','chair'],entry:[entryExtra],laundry:active('utilityCabinet')?[utilityExtra]:[],music:[],gym:['chair'],game:['chair','bookcase'],workshop:['chair']};
   const result=Object.fromEntries(plan.roomIds.map(id=>[id,(cores[id]||[]).filter(unlocked)]));
   const pending=plan.roomIds.flatMap(id=>(optional[id]||[]).filter(unlocked).map(kind=>({id,kind,rank:introduced.has(kind)?-10:rand()}))).sort((a,b)=>a.rank-b.rank);
   for(const item of pending){const count=new Set(Object.values(result).flat()).size;if(introduced.has(item.kind)||count<12||Object.values(result).flat().includes(item.kind))result[item.id].push(item.kind);}

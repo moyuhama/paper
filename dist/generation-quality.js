@@ -14,7 +14,7 @@ export function generationQualityErrors(level){
     const ids=[...new Set(edgeCells(key).map(c=>layout.cells[c]).filter(Boolean))];
     if(ids.length===2){graph.get(ids[0]).add(ids[1]);graph.get(ids[1]).add(ids[0]);}
   }
-  for(const id of ['bedroom','master','guest','bath','kitchen','game','study','store','laundry','workshop'])if(graph.has(id)&&graph.get(id).size!==1)errors.push(`${id}不应承担穿行交通`);
+  for(const id of ['bedroom','master','guest','bath','kitchen','game','study','store','laundry','workshop','music','gym'])if(graph.has(id)&&graph.get(id).size!==1)errors.push(`${id}不应承担穿行交通`);
   if(graph.has('kitchen')&&!graph.get('kitchen').has('dining'))errors.push('厨房须直接连接餐厅');
   if(graph.has('bath')&&!graph.get('bath').has('hall'))errors.push('卫生间须直接连接走廊');
   if(layout.objects.some(o=>!objectRoom(layout,o)||footprint(o).length===0))errors.push('参考家具占地无效');

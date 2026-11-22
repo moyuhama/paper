@@ -3,6 +3,16 @@ import {OBJECTS} from './catalog.js';
 import {SHAPE_NAMES} from './shape-catalog.js';
 
 const furnitureAdvice={
+  cornerDesk:'转角书桌外框2×2格，实占3格。缺口是工作侧空地的一部分；按虚线留使用区，旋转与碰撞按真实L形计算。',
+  bar:'吧台连同吧凳整体占2×1格，在餐厅里替代餐桌。箭头侧留1m使用区，不能堵住通向厨房的门。',
+  vanity:'梳妆台占2×1格，放在指定卧室里。先留床与门口通路，再按箭头给梳妆台留出使用区。',
+  entryBench:'玄关长凳占2×1格。入口窄，先给入户门内侧留空；长凳可转向，箭头侧也需要可到达的使用区。',
+  utilityCabinet:'家政柜占1×2格，箭头指向柜门一侧。柜门前要留完整1m使用区，与洗衣机共同安排，不能堵住房门。',
+  dryingRack:'晾衣架展开后占2×1格，可旋转。按本题的方位条件摆放，并给洗衣机与房门留通路。',
+  piano:'钢琴占3×1格，放在琴房里。琴键一侧按箭头留1m使用区；先找连续3格完整空间，再安排房门。',
+  treadmill:'跑步机占1×2格，控制台是箭头所指的正面。该侧留1m使用区；转向时，使用区会随控制台一起变化。',
+  gameTable:'游戏桌占2×2格，放在游戏室里。整体包括桌边位置，仍须留可到达的使用位置；家具数量与距离以本题需求为准。',
+
   bed:'双人床占2×2格。先留出床的位置，再放门；四周至少一侧要能从门口走到。',
   sofa:'双人沙发占2×1格。转向会改变长边方向；不要把通向其他房间的通路堵住。',
   chair:'单人沙发占1格。它也需要可到达的使用位置，不能只塞进一个封闭角落。',
@@ -43,7 +53,8 @@ const shapeAdvice={
 export function lessonsForLevel(level,{seen=[],includeSeen=false}={}){
   if(level.chapter===1)return [];
   const lessons=[];
-  for(const kind of level.progression?.newFurniture||[]){
+  const introduced=[...new Set([...(level.progression?.newFurniture||[]),...level.rules.filter(r=>r.type==='objectCount'&&r.value>0&&OBJECTS[r.kind]?.pack==='second').map(r=>r.kind)])];
+  for(const kind of introduced){
     if(!OBJECTS[kind]||!level.rules.some(r=>r.type==='objectCount'&&r.kind===kind&&r.value>0))continue;
     lessons.push({id:'furniture-v1:'+kind,title:'新物件 · '+OBJECTS[kind].name,text:furnitureAdvice[kind],kind});
   }
@@ -51,7 +62,7 @@ export function lessonsForLevel(level,{seen=[],includeSeen=false}={}){
     named:'条件中的A、B对应家具上的圆形标记。新放家具会自动分配未使用的标记；用抓手选中家具，点“标记”可交换A、B，家具位置不变。',
     multiple:'同一房间可能需要两件同类家具。选中物件后连续放置即可；每件可以独立移动、转向、擦除和撤销。数量要求会显示已放/需要的件数。',
     quantifiers:'“每个”要求所有同类家具都满足；“至少一个”只需其中一件满足。目标若有多件，分别按每件来源家具统计，不能只检查最先放下的那件。',
-    useSpace:'有正面要求的家具带绿色小箭头。箭头朝向的一侧须留整排1m深的空地，且能从入户门走到。转向180°也会改变正面；点击条件可查看使用区。',
+    useSpace:'有正面要求的家具带绿色小箭头。按虚线留出箭头一侧1m深的使用区，且能从入户门走到。转向180°也会改变正面；点击条件可查看使用区。',
     distance:'家具距离从两件家具边缘之间的最短直线计算，贴边或角接触为0m。点击距离条件可查看连线与距离；不是从家具中心计算。'
   };
   for(const key of level.mechanics||[]){

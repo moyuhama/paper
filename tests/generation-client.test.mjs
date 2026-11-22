@@ -83,3 +83,10 @@ test('标记和L形引入关回退不丢内容，缺L形的有效Worker题也被
   class MissingL{postMessage(){queueMicrotask(()=>this.onmessage({data:{level:wrong}}));}terminate(){}}
   const rescued=await createCommissionGenerator({WorkerClass:MissingL,fetcher})(48);assert.equal(rescued.generation.source,'verified-fallback');assert.ok(rescued.reference.objects.some(o=>o.kind==='sectional'));
 });
+
+test('第50至66份引入关回退保留全部新品种，缺钢琴的有效Worker题也不能进入第62题',async()=>{
+  const generate=createCommissionGenerator({WorkerClass:null,fetcher});
+  for(const [chapter,kind]of [[50,'cornerDesk'],[52,'bar'],[54,'vanity'],[56,'entryBench'],[58,'utilityCabinet'],[60,'dryingRack'],[62,'piano'],[64,'treadmill'],[66,'gameTable']]){const level=await generate(chapter);assert.ok(level.reference.objects.some(o=>o.kind===kind),kind);assert.ok(level.progression.newFurniture.includes(kind));}
+  const wrong=createCampaignLevel(49);wrong.chapter=62;class MissingPiano{postMessage(){queueMicrotask(()=>this.onmessage({data:{level:wrong}}));}terminate(){}}
+  const rescued=await createCommissionGenerator({WorkerClass:MissingPiano,fetcher})(62);assert.equal(rescued.generation.source,'verified-fallback');assert.ok(rescued.reference.objects.some(o=>o.kind==='piano'));
+});

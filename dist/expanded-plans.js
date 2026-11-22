@@ -1,3 +1,4 @@
+import {OBJECTS} from './catalog.js';
 import {clipHalfPlane,polygonArea,geometrySegments} from './geometry.js';
 import {cellKey,point,edgeKey,edgeParts} from './engine.js';
 import {SHAPE_NAMES,SHAPE_UNLOCKS,SHAPE_INTRODUCTIONS} from './shape-catalog.js';
@@ -13,9 +14,12 @@ export function createExpandedPlan(rand,{chapter=30,family}={}){
   const cells={},fixedAreas={},fixedWalls=[],connections=[];
   const rect=(id,x,y,w,h)=>{for(let j=y;j<y+h;j++)for(let i=x;i<x+w;i++){const c=cellKey(i,j);if(cells[c])throw new Error('结构模块重叠');cells[c]=id;}};
   const link=(a,b,kind='door')=>connections.push({a,b,kind});
-  const topRole=chapter===30?'workshop':chapter>=30?['study','workshop','guest'][integer(0,2)]:chapter>=20?'study':'guest';
+  const introducedKind=Object.keys(OBJECTS).find(kind=>OBJECTS[kind].chapter===chapter);
+  const introducedRole={workbench:'workshop',cornerDesk:'study',piano:'music',treadmill:'gym',gameTable:'game'}[introducedKind];
+  const laterRoles=['study','workshop','guest',...(chapter>=OBJECTS.piano.chapter?['music']:[]),...(chapter>=OBJECTS.treadmill.chapter?['gym']:[]),...(chapter>=OBJECTS.gameTable.chapter?['game']:[])];
+  const topRole=introducedRole||(chapter>=30?laterRoles[integer(0,laterRoles.length-1)]:chapter>=20?'study':'guest');
   const bottomRole=chapter>=26?'laundry':'store';
-  const masterWidth=integer(4,5),auxWidth=integer(3,4),privateWidth=masterWidth+auxWidth,top=4;
+  const masterWidth=integer(chapter>=OBJECTS.utilityCabinet.chapter?5:4,5),auxWidth=integer(3,4),privateWidth=masterWidth+auxWidth,top=4;
   const hallX=privateWidth,publicX=hallX+1,publicWidth=(family==='diagonal'?7:6)+integer(0,1),livingHeight=4+integer(0,1),height=livingHeight+3;
   rect('master',0,0,masterWidth,top);rect(topRole,masterWidth,0,auxWidth,top);
   rect('hall',0,top,privateWidth,1);rect('hall',hallX,0,1,height);

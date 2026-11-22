@@ -218,7 +218,7 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.7.0</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.8.0</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';

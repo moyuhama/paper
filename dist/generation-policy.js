@@ -18,7 +18,9 @@ export function selectClues(level,chapter,{deadline=Infinity}={}){
     }
     return true;
   });
-  const {rules:directions,quality}=effectiveDirections(level,directional,budget,{deadline});
+  const available=Math.max(0,budget.maxVisibleRules-level.rules.filter(r=>!(r.type==='boundaryCount'&&r.kind==='window')).length);
+  const negativeBudget=Math.min(budget.negativeBudget,Math.floor(available/4)),directionBudget=Math.min(budget.directionBudget,available-negativeBudget);
+  const {rules:directions,quality}=effectiveDirections(level,directional,{...budget,directionBudget,negativeBudget},{deadline});
   level.clueQuality=quality;
   while(level.rules.length+directions.length>budget.maxVisibleRules){const index=level.rules.findLastIndex(r=>r.type==='boundaryCount'&&r.kind==='window');if(index<0)throw new Error('家具组合超出线索预算');level.rules.splice(index,1);}
   level.rules.push(...directions);

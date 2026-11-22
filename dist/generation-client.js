@@ -18,7 +18,7 @@ export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher
     fallbackPromise??=json(indexURL).catch(error=>{fallbackPromise=null;throw error;});
     const bank=await fallbackPromise;if(bank.contentVersion!==CONTENT_VERSION)throw new Error('委托内容版本不一致，请刷新后重试');
     const allowed=new Set(unlockedFurnitureAt(chapter)),required=furnitureIntroducedAt(chapter);
-    const pool=bank.entries.filter(entry=>(chapter<=48?entry.chapter===chapter:entry.chapter>=30&&entry.tier===difficultyFor(chapter).tier)&&(entry.chapter<12||!entry.family||SHAPE_UNLOCKS[entry.family]<=chapter)&&!avoid.includes(entry.fingerprint)&&mechanicsAt(chapter).every(key=>(entry.mechanics||[]).includes(key)));
+    const pool=bank.entries.filter(entry=>(chapter<=66?entry.chapter===chapter:entry.chapter>=30&&entry.tier===difficultyFor(chapter).tier)&&(entry.chapter<12||!entry.family||SHAPE_UNLOCKS[entry.family]<=chapter)&&!avoid.includes(entry.fingerprint)&&mechanicsAt(chapter).every(key=>(entry.mechanics||[]).includes(key)));
     let best,bestScore=Infinity;
     for(const entry of rankFallbackEntries(pool,recent).slice(0,3)){
       if(!/^levels\/\d+\.json$/.test(entry.file))continue;

@@ -3,6 +3,16 @@ import {OBJECTS,edgeParts,footprint,point} from './engine.js';
 export function furnitureSVG(kind,x,y,rotation=0,scale=1){
   const def=OBJECTS[kind],w=def.w,h=def.h;
   const shapes={
+    cornerDesk:'<path d="M.08 .08H1.92V.92H.92V1.92H.08Z"/><rect x=".72" y=".2" width=".7" height=".32" rx=".03"/><path d="M1.04 .52v.13M.85 .65h.4M.22 .85h.4v.62H.22z"/>',
+    bar:'<rect x=".07" y=".08" width="1.86" height=".5" rx=".06"/><path d="M.2 .2h1.6M.35 .44h.25M1.4 .44h.25"/><circle cx=".5" cy=".8" r=".14"/><circle cx="1.5" cy=".8" r=".14"/>',
+    vanity:'<rect x=".08" y=".12" width="1.84" height=".65" rx=".05"/><ellipse cx="1" cy=".23" rx=".58" ry=".12"/><path d="M.5 .4v.32M1.5 .4v.32M.18 .5h.2M1.62 .5h.2"/><rect x=".75" y=".79" width=".5" height=".15" rx=".05"/>',
+    entryBench:'<rect x=".08" y=".18" width="1.84" height=".64" rx=".06"/><path d="M.18 .4h1.64M.18 .6h1.64M.3 .18v.64M1.7 .18v.64"/><circle cx=".22" cy=".25" r=".04"/><circle cx="1.78" cy=".75" r=".04"/>',
+    utilityCabinet:'<rect x=".1" y=".07" width=".8" height="1.86"/><path d="M.1 .7h.8M.1 1.32h.8M.75 .32v.17M.75 .91v.17M.75 1.54v.17"/><path d="M.22 .2h.32v.3H.22zM.22 .85h.32v.3H.22zM.22 1.48h.32v.3H.22z" stroke-opacity=".45"/>',
+    dryingRack:'<rect x=".16" y=".18" width="1.68" height=".64" rx=".03"/><path d="M.08 .08l.18 .84M1.92 .08l-.18 .84M.38 .18v.64M.62 .18v.64M.86 .18v.64M1.1 .18v.64M1.34 .18v.64M1.58 .18v.64"/>',
+    piano:'<rect x=".07" y=".12" width="2.86" height=".75" rx=".05"/><rect x=".18" y=".22" width="2.64" height=".28" fill="#68716b"/><path d="M.18 .53h2.64v.24H.18zM.4 .53v.24M.62 .53v.24M.84 .53v.24M1.06 .53v.24M1.28 .53v.24M1.5 .53v.24M1.72 .53v.24M1.94 .53v.24M2.16 .53v.24M2.38 .53v.24M2.6 .53v.24"/><path d="M.48 .53v.12M.7 .53v.12M1.14 .53v.12M1.36 .53v.12M1.58 .53v.12M2.02 .53v.12M2.24 .53v.12" stroke-width=".075"/>',
+    treadmill:'<rect x=".12" y=".08" width=".76" height="1.84" rx=".08"/><rect x=".2" y=".45" width=".6" height="1.34" rx=".05" fill="#d8ded4"/><path d="M.28 .64h.44M.28 .88h.44M.28 1.12h.44M.28 1.36h.44M.28 1.6h.44M.08 .25v.5M.92 .25v.5"/><rect x=".23" y=".16" width=".54" height=".19" rx=".03"/><path d="M.33 .25h.17"/><circle cx=".66" cy=".25" r=".035"/>',
+    gameTable:'<rect x=".15" y=".15" width="1.7" height="1.7" rx=".15"/><rect x=".3" y=".3" width="1.4" height="1.4" rx=".08" fill="#d7e1cc"/><path d="M.62 .65h.54a.25 .25 0 0 1 .22 .15l.12 .36q.04 .18-.15 .18l-.19-.19H.7l-.19 .19q-.18 0-.14-.18l.12-.36q.05-.15 .13-.15z"/><path d="M.65 .82v.23M.54 .94h.23"/><circle cx="1.18" cy=".87" r=".04"/><circle cx="1.31" cy="1" r=".04"/><path d="M.8 .06h.4M.8 1.94h.4M.06 .8v.4M1.94 .8v.4"/>',
+
     bed:`<rect x=".08" y=".08" width="1.84" height="1.84" rx=".08"/><path d="M.08 .7h1.84M1 .12v.52"/><rect x=".2" y=".18" width=".65" height=".36" rx=".04"/><rect x="1.15" y=".18" width=".65" height=".36" rx=".04"/>`,
     singleBed:'<rect x=".08" y=".08" width=".84" height="1.84" rx=".07"/><path d="M.08 .65h.84"/><rect x=".2" y=".2" width=".6" height=".3" rx=".04"/>',
     sectional:'<path d="M.08 .08H2.92V.92H.92V1.92H.08Z"/><path d="M.25 .22H2.76V.38H.4V1.75H.24ZM1 .4v.42M2 .4v.42M.42 1h.4"/>',
