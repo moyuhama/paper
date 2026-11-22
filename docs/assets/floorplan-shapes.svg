@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="680" viewBox="0 0 960 680">
+<rect width="100%" height="100%" fill="#f5f1e6"/>
+<g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<text x="28" y="50" font-size="28" fill="#484d40">户型轮廓扩展方向</text>
+<text x="28" y="81" font-size="17" fill="#77745f">规划示意 · 尚未上线 · 轮廓未附房间分区和参考解</text>
+<rect x="20" y="108" width="300" height="260" rx="8" fill="#fffdf4" stroke="#ded7c3"/>
+<text x="37" y="142" font-size="21" fill="#484d40">缺角户型</text>
+<path d="M80,160 L172,160 L172,206 L218,206 L218,298 L80,298 Z" fill="#dce7d2"/>
+<clipPath id="shape-0"><path d="M80,160 L172,160 L172,206 L218,206 L218,298 L80,298 Z"/></clipPath><g clip-path="url(#shape-0)" stroke="#b7c3ab" stroke-width="0.65">
+<path d="M80 160v184M80 160h184"/>
+<path d="M103 160v184M80 183h184"/>
+<path d="M126 160v184M80 206h184"/>
+<path d="M149 160v184M80 229h184"/>
+<path d="M172 160v184M80 252h184"/>
+<path d="M195 160v184M80 275h184"/>
+<path d="M218 160v184M80 298h184"/>
+<path d="M241 160v184M80 321h184"/>
+<path d="M264 160v184M80 344h184"/>
+</g>
+<path d="M80,160 L172,160 L172,206 L218,206 L218,298 L80,298 Z" fill="none" stroke="#4e5846" stroke-width="4" stroke-linejoin="round"/>
+<text x="37" y="352" font-size="15" fill="#77745f">转角影响房间和门窗安排</text>
+<rect x="334" y="108" width="300" height="260" rx="8" fill="#fffdf4" stroke="#ded7c3"/>
+<text x="351" y="142" font-size="21" fill="#484d40">L 形户型</text>
+<path d="M394,160 L532,160 L532,229 L463,229 L463,298 L394,298 Z" fill="#dce7d2"/>
+<clipPath id="shape-1"><path d="M394,160 L532,160 L532,229 L463,229 L463,298 L394,298 Z"/></clipPath><g clip-path="url(#shape-1)" stroke="#b7c3ab" stroke-width="0.65">
+<path d="M394 160v184M394 160h184"/>
+<path d="M417 160v184M394 183h184"/>
+<path d="M440 160v184M394 206h184"/>
+<path d="M463 160v184M394 229h184"/>
+<path d="M486 160v184M394 252h184"/>
+<path d="M509 160v184M394 275h184"/>
+<path d="M532 160v184M394 298h184"/>
+<path d="M555 160v184M394 321h184"/>
+<path d="M578 160v184M394 344h184"/>
+</g>
+<path d="M394,160 L532,160 L532,229 L463,229 L463,298 L394,298 Z" fill="none" stroke="#4e5846" stroke-width="4" stroke-linejoin="round"/>
+<text x="351" y="352" font-size="15" fill="#77745f">两翼用途和通行关系</text>
+<rect x="648" y="108" width="300" height="260" rx="8" fill="#fffdf4" stroke="#ded7c3"/>
+<text x="665" y="142" font-size="21" fill="#484d40">U 形户型</text>
+<path d="M708,160 L754,160 L754,252 L800,252 L800,160 L846,160 L846,298 L708,298 Z" fill="#dce7d2"/>
+<clipPath id="shape-2"><path d="M708,160 L754,160 L754,252 L800,252 L800,160 L846,160 L846,298 L708,298 Z"/></clipPath><g clip-path="url(#shape-2)" stroke="#b7c3ab" stroke-width="0.65">
+<path d="M708 160v184M708 160h184"/>
+<path d="M731 160v184M708 183h184"/>
+<path d="M754 160v184M708 206h184"/>
+<path d="M777 160v184M708 229h184"/>
+<path d="M800 160v184M708 252h184"/>
+<path d="M823 160v184M708 275h184"/>
+<path d="M846 160v184M708 298h184"/>
+<path d="M869 160v184M708 321h184"/>
+<path d="M892 160v184M708 344h184"/>
+</g>
+<path d="M708,160 L754,160 L754,252 L800,252 L800,160 L846,160 L846,298 L708,298 Z" fill="none" stroke="#4e5846" stroke-width="4" stroke-linejoin="round"/>
+<text x="665" y="352" font-size="15" fill="#77745f">凹口内外墙与路线变化</text>
+<rect x="20" y="388" width="300" height="260" rx="8" fill="#fffdf4" stroke="#ded7c3"/>
+<text x="37" y="422" font-size="21" fill="#484d40">狭长入口</text>
+<path d="M103,440 L218,440 L218,532 L172,532 L172,601 L149,601 L149,532 L103,532 Z" fill="#dce7d2"/>
+<clipPath id="shape-3"><path d="M103,440 L218,440 L218,532 L172,532 L172,601 L149,601 L149,532 L103,532 Z"/></clipPath><g clip-path="url(#shape-3)" stroke="#b7c3ab" stroke-width="0.65">
+<path d="M80 440v184M80 440h184"/>
+<path d="M103 440v184M80 463h184"/>
+<path d="M126 440v184M80 486h184"/>
+<path d="M149 440v184M80 509h184"/>
+<path d="M172 440v184M80 532h184"/>
+<path d="M195 440v184M80 555h184"/>
+<path d="M218 440v184M80 578h184"/>
+<path d="M241 440v184M80 601h184"/>
+<path d="M264 440v184M80 624h184"/>
+</g>
+<path d="M103,440 L218,440 L218,532 L172,532 L172,601 L149,601 L149,532 L103,532 Z" fill="none" stroke="#4e5846" stroke-width="4" stroke-linejoin="round"/>
+<text x="37" y="632" font-size="15" fill="#77745f">入户与内部主空间的连接</text>
+<rect x="334" y="388" width="300" height="260" rx="8" fill="#fffdf4" stroke="#ded7c3"/>
+<text x="351" y="422" font-size="21" fill="#484d40">凸出阳台</text>
+<path d="M394,440 L509,440 L509,463 L555,463 L555,509 L509,509 L509,532 L394,532 Z" fill="#dce7d2"/>
+<clipPath id="shape-4"><path d="M394,440 L509,440 L509,463 L555,463 L555,509 L509,509 L509,532 L394,532 Z"/></clipPath><g clip-path="url(#shape-4)" stroke="#b7c3ab" stroke-width="0.65">
+<path d="M394 440v184M394 440h184"/>
+<path d="M417 440v184M394 463h184"/>
+<path d="M440 440v184M394 486h184"/>
+<path d="M463 440v184M394 509h184"/>
+<path d="M486 440v184M394 532h184"/>
+<path d="M509 440v184M394 555h184"/>
+<path d="M532 440v184M394 578h184"/>
+<path d="M555 440v184M394 601h184"/>
+<path d="M578 440v184M394 624h184"/>
+</g>
+<path d="M394,440 L509,440 L509,463 L555,463 L555,509 L509,509 L509,532 L394,532 Z" fill="none" stroke="#4e5846" stroke-width="4" stroke-linejoin="round"/>
+<text x="351" y="632" font-size="15" fill="#77745f">突出区域的用途与采光条件</text>
+<rect x="648" y="388" width="300" height="260" rx="8" fill="#fffdf4" stroke="#ded7c3"/>
+<text x="665" y="422" font-size="21" fill="#484d40">真实斜边</text>
+<path d="M708,440 L846,440 L869,555 L754,578 L708,532 Z" fill="#dce7d2"/>
+<clipPath id="shape-5"><path d="M708,440 L846,440 L869,555 L754,578 L708,532 Z"/></clipPath><g clip-path="url(#shape-5)" stroke="#b7c3ab" stroke-width="0.65">
+<path d="M708 440v184M708 440h184"/>
+<path d="M731 440v184M708 463h184"/>
+<path d="M754 440v184M708 486h184"/>
+<path d="M777 440v184M708 509h184"/>
+<path d="M800 440v184M708 532h184"/>
+<path d="M823 440v184M708 555h184"/>
+<path d="M846 440v184M708 578h184"/>
+<path d="M869 440v184M708 601h184"/>
+<path d="M892 440v184M708 624h184"/>
+</g>
+<path d="M708,440 L846,440 L869,555 L754,578 L708,532 Z" fill="none" stroke="#4e5846" stroke-width="4" stroke-linejoin="round"/>
+<text x="665" y="632" font-size="15" fill="#77745f">需要新的多边形面积和碰撞判定</text>
+</g></svg>
