@@ -39,7 +39,7 @@ export function effectiveDirections(level,candidates,budget,{deadline=Infinity}=
     for(const item of pool){
       if(selected.includes(item)||(item.rule.forbidden?negative>=budget.negativeBudget:positive>=budget.directionBudget))continue;
       const gain=[...item.failures].filter(i=>!covered.has(i)).length;
-      const rank=gain+(gain&&level.chapter===40&&item.rule.quantifier==='any'?100:0)+(gain?(!sources.has(item.rule.source.kind)?1:0)+(introduced.has(item.rule.source.kind)?2:0):0);
+      const rank=gain+(gain&&level.chapter>=46&&(item.rule.source.tag||item.rule.target.tag)?100:0)+(gain&&level.chapter===40&&item.rule.quantifier==='any'?100:0)+(gain?(!sources.has(item.rule.source.kind)?1:0)+(introduced.has(item.rule.source.kind)?200:0):0);
       if(rank>score){score=rank;best=item;}
     }
     if(!best)break;

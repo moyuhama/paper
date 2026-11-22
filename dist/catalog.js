@@ -1,4 +1,4 @@
-export const CONTENT_VERSION='residential-3';
+export const CONTENT_VERSION='residential-4';
 const definitions=[
   ['bed','双人床',2,2,1],['singleBed','单人床',1,2,9],
   ['sofa','双人沙发',2,1,3],['chair','单人沙发',1,1,4],
@@ -8,9 +8,9 @@ const definitions=[
   ['fridge','冰箱',1,1,12],['coffeeTable','茶几',2,1,14],['tvStand','电视柜',2,1,16],
   ['bedsideTable','床头柜',1,1,18],['desk','书桌',2,1,20],['bookcase','书柜',1,2,22],
   ['basin','洗手台',1,1,24],['washer','洗衣机',1,1,26],['shoeCabinet','鞋柜',1,2,28],
-  ['workbench','工作台',3,1,30]
+  ['workbench','工作台',3,1,30],['sectional','L形沙发',3,2,48]
 ];
-export const OBJECTS=Object.freeze(Object.fromEntries(definitions.map(([id,name,w,h,chapter])=>[id,Object.freeze({name,w,h,chapter,...(['sofa','chair','desk','workbench','fridge','washer','wardrobe','bookcase'].includes(id)?{front:'S'}:{})})])));
+export const OBJECTS=Object.freeze(Object.fromEntries(definitions.map(([id,name,w,h,chapter])=>[id,Object.freeze({name,w,h,chapter,...(id==='sectional'?{front:'S',shape:[[0,0],[1,0],[2,0],[0,1]]}:{}),...(['sofa','chair','desk','workbench','fridge','washer','wardrobe','bookcase'].includes(id)?{front:'S'}:{})})])));
 export const ROOM_CATALOG={
   living:{name:'客厅',color:'#edc8c3',objects:['sofa','chair']},bedroom:{name:'卧室',color:'#ede5b2',objects:['bed']},
   bath:{name:'卫生间',color:'#c9c9e8',objects:['shower','toilet'],advancedObjects:['bathtub']},kitchen:{name:'厨房',color:'#bcdccd',objects:['stove','sink']},
@@ -26,7 +26,8 @@ export function roomFurniture(plan,{chapter,rand,expanded=false,basic=false}={})
   if(!expanded)return Object.fromEntries(plan.roomIds.map(id=>[id,[...ROOM_CATALOG[id].objects,...(!basic?ROOM_CATALOG[id].advancedObjects||[]:[])].filter(unlocked)]));
   const introduced=new Set(Object.keys(OBJECTS).filter(k=>OBJECTS[k].chapter===chapter));
   const bathing=rand()>.5?'shower':'bathtub';
-  const cores={living:['sofa'],master:['bed'],bedroom:['bed'],guest:['singleBed'],bath:['toilet',bathing],kitchen:['stove','sink'],dining:['table'],study:['desk'],store:['wardrobe'],laundry:['washer'],workshop:['workbench'],entry:[],hall:[],balcony:[]};
+  const seating=chapter>=48&&(chapter===48||rand()>.5)?'sectional':'sofa';
+  const cores={living:[seating],master:['bed'],bedroom:['bed'],guest:['singleBed'],bath:['toilet',bathing],kitchen:['stove','sink'],dining:['table'],study:['desk'],store:['wardrobe'],laundry:['washer'],workshop:['workbench'],entry:[],hall:[],balcony:[]};
   const optional={living:[introduced.has('coffeeTable')?'coffeeTable':introduced.has('tvStand')?'tvStand':rand()>.5?'coffeeTable':'tvStand'],master:['bedsideTable'],bedroom:['bedsideTable'],guest:['wardrobe'],bath:['basin'],kitchen:['fridge'],study:['bookcase','chair'],entry:['shoeCabinet'],workshop:['chair']};
   const result=Object.fromEntries(plan.roomIds.map(id=>[id,(cores[id]||[]).filter(unlocked)]));
   const pending=plan.roomIds.flatMap(id=>(optional[id]||[]).filter(unlocked).map(kind=>({id,kind,rank:introduced.has(kind)?-10:rand()}))).sort((a,b)=>a.rank-b.rank);

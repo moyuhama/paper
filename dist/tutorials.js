@@ -23,6 +23,7 @@ const furnitureAdvice={
   basin:'洗手台占1格，和厨房的洗碗池不同。卫生间面积不大，先预留马桶与洗浴设施的位置。',
   washer:'洗衣机占1格。本题若有家政间，就按家政间的需求放置；不要只看物件外形。',
   shoeCabinet:'鞋柜占1×2格。玄关较窄，入户门内侧必须留空；可以转向后沿侧墙放置。',
+  sectional:'L形沙发占3×2格中的4格，缺口不占地。按实际形状转向；虚线正面使用区仍须留空。方位范围与距离连线都按实际占格显示。',
   workbench:'工作台占3×1格。先找连续3格的完整空间，转向可改为1×3格；固定墙与斜角不能被跨过。'
 };
 const shapeAdvice={
@@ -47,13 +48,14 @@ export function lessonsForLevel(level,{seen=[],includeSeen=false}={}){
     lessons.push({id:'furniture-v1:'+kind,title:'新物件 · '+OBJECTS[kind].name,text:furnitureAdvice[kind],kind});
   }
   const mechanicAdvice={
+    named:'条件中的A、B对应家具上的圆形标记。新放家具会自动分配未使用的标记；用抓手选中家具，点“标记”可交换A、B，家具位置不变。',
     multiple:'同一房间可能需要两件同类家具。选中物件后连续放置即可；每件可以独立移动、转向、擦除和撤销。数量要求会显示已放/需要的件数。',
     quantifiers:'“每个”要求所有同类家具都满足；“至少一个”只需其中一件满足。目标若有多件，分别按每件来源家具统计，不能只检查最先放下的那件。',
     useSpace:'有正面要求的家具带绿色小箭头。箭头朝向的一侧须留整排1m深的空地，且能从入户门走到。转向180°也会改变正面；点击条件可查看使用区。',
     distance:'家具距离从两件家具边缘之间的最短直线计算，贴边或角接触为0m。点击距离条件可查看连线与距离；不是从家具中心计算。'
   };
   for(const key of level.mechanics||[]){
-    const applicable=key==='multiple'?level.rules.some(r=>r.type==='objectCount'&&r.value>1):key==='quantifiers'?level.rules.some(r=>r.quantifier&&level.rules.some(count=>count.type==='objectCount'&&count.kind===r.source?.kind&&count.roomId===r.source?.roomId&&count.value>1)):level.rules.some(r=>r.type===key);
+    const applicable=key==='multiple'?level.rules.some(r=>r.type==='objectCount'&&r.value>1):key==='named'?level.rules.some(r=>r.type==='instances'):key==='quantifiers'?level.rules.some(r=>r.quantifier&&level.rules.some(count=>count.type==='objectCount'&&count.kind===r.source?.kind&&count.roomId===r.source?.roomId&&count.value>1)):level.rules.some(r=>r.type===key);
     if(applicable)lessons.push({id:'mechanic-v1:'+key,title:'新玩法 · '+MECHANIC_NAMES[key],text:mechanicAdvice[key]});
   }
   const family=level.planning?.shapeFamily;

@@ -1,4 +1,5 @@
-import {frontAnnotationSVG,usagePreviewSVG,spatialRuleSVG,ruleExplanation} from './rule-visuals.js';
+import {availableTags,placementIdentity,assignFurnitureTag,instanceName} from './instances.js';
+import {frontAnnotationSVG,instanceBadgeSVG,usagePreviewSVG,spatialRuleSVG,ruleExplanation} from './rule-visuals.js';
 import {MECHANIC_NAMES} from './mechanics.js';
 import {lessonsForLevel,completeLessons} from './tutorials.js';
 import {describeStructure} from './puzzle-diversity.js';
@@ -8,10 +9,10 @@ import {createId} from './ids.js';
 import {archiveConversation,completedCommissions} from './commission-history.js';
 import {renderPlan} from './plan-view.js';
 import {beginTouchCamera,updateTouchCamera} from './touch-camera.js';
-import {furnitureSVG,objectIcon,structureSVG,cellSVG,edgePath,diagonalBoundarySVG} from './drawing-assets.js';
+import {furnitureSVG,footprintSVG,objectIcon,structureSVG,cellSVG,edgePath,diagonalBoundarySVG} from './drawing-assets.js';
 import {GRID_PIXELS,clampZoom,cameraBox,draggedPan,zoomedPan} from './camera.js';
 import {createGameAudio} from './audio.js';
-import {OBJECTS,selectedObjects,clone,point,cellKey,edgeKey,edgeParts,allEdges,edgeInfo,boundaryKind,footprint,objectRoom,bounds,initialLayout,evaluateLayout,validateLevel,paintRoom,eraseRect,placeBoundary,placeObject,rotateObject} from './engine.js';
+import {OBJECTS,directionBands,selectedObjects,clone,point,cellKey,edgeKey,edgeParts,allEdges,edgeInfo,boundaryKind,footprint,objectRoom,bounds,initialLayout,evaluateLayout,validateLevel,paintRoom,eraseRect,placeBoundary,placeObject,rotateObject} from './engine.js';
 import {hintRoom,createOpeningLevel,createCampaignLevel,paletteForLevel} from './levels.js';
 import {RATING_VERSION,newAttempt,recordHint,recordFailure,approveAttempt,restoreAttempt,restoreSubmissionRatings} from './rating.js';
 
@@ -21,6 +22,7 @@ let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}');}catch{}
 let level,layout,undoStack=[],redoStack=[],tool='room',selectedRoom,selectedObject='bed',rotation=0,eraseFilter='all',hints=3,submissions=[],history=saved.history||[],phone=false,review=null,collapsed=new Set(),drag=null,pan={x:0,y:0},zoom=1,help=false,modal=null;
 let campaignId=saved.campaignId||'legacy',conversations=saved.conversations||[],viewingCommission=null,chatScroll=null,mobilePaletteOpen=false;
 let taskIndex=saved.taskIndex||1,tutorialStage=saved.tutorialStage||0;
+let pendingTag=null;
 let selectedId=null,hoverPoint=null,lastDrawTool='room',inspectedRule=null;
 let paletteFocus=null,requirementsReset=false,manualGuide=false,showRequirements=true,requirementsScroll=0,portraitHintDismissed=false,viewNeedsFit=true;
 const savedVolume=(key,fallback)=>typeof saved.settings?.[key]==='number'&&Number.isFinite(saved.settings[key])?Math.max(0,Math.min(1,saved.settings[key])):fallback;
@@ -51,7 +53,7 @@ function archiveCurrentConversation(){conversations=archiveConversation(conversa
 function pastCommissions(){return completedCommissions(history,conversations,{campaignId,currentLevelId:level.id});}
 function loadGameLevel(next,{archive=true}={}){
   if(archive)archiveCurrentConversation();mobilePaletteOpen=false;
-  level=next;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
+  level=next;pendingTag=null;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
 }
 function advanceOpening(next){
   const before=tutorialStage;
@@ -88,7 +90,7 @@ function requirementText(result){
 function groupsHTML(check){
   return [{id:'global',name:'整屋要求',color:'#56634f'},...level.rooms].map(room=>{
     const items=check.results.filter(r=>r.group===room.id&&!level.rules.find(rule=>rule.id===r.id)?.hidden),count=items.filter(r=>r.ok).length,done=count===items.length,closed=collapsed.has(room.id);
-    return `<section class="require-group ${done?'done':''}"><button class="group-head" data-collapse="${room.id}" aria-expanded="${!closed}"><span class="fold ${closed?'closed':''}">⌄</span><span class="swatch" style="--room:${room.color}"></span><span>${esc(room.name)}</span><span class="group-count">${count}/${items.length}</span></button>${closed?'':`<ul>${items.map(r=>`<li class="${r.ok?'met':''}"><span class="condition-icon">${r.ok?'✓':'·'}</span>${['direction','useSpace','distance'].includes(r.type)?`<button class="direction-condition ${inspectedRule===r.id?'inspecting':''}" data-inspect="${r.id}" aria-label="${esc(r.text)}" title="在图纸上查看条件范围">${esc(r.text)}<span class="range-link">查看范围</span></button>`:`<span>${esc(requirementText(r))}</span>`}</li>`).join('')}</ul>`}</section>`;
+    return `<section class="require-group ${done?'done':''}"><button class="group-head" data-collapse="${room.id}" aria-expanded="${!closed}"><span class="fold ${closed?'closed':''}">⌄</span><span class="swatch" style="--room:${room.color}"></span><span>${esc(room.name)}</span><span class="group-count">${count}/${items.length}</span></button>${closed?'':`<ul>${items.map(r=>`<li class="${r.ok?'met':''}"><span class="condition-icon">${r.ok?'✓':'·'}</span>${['direction','useSpace','distance','instances'].includes(r.type)?`<button class="direction-condition ${inspectedRule===r.id?'inspecting':''}" data-inspect="${r.id}" aria-label="${esc(r.text)}" title="在图纸上查看条件范围">${esc(r.text)}<span class="range-link">查看范围</span></button>`:`<span>${esc(requirementText(r))}</span>`}</li>`).join('')}</ul>`}</section>`;
   }).join('');
 }
 function boardHTML(){
@@ -131,9 +133,9 @@ function boardHTML(){
     const nearest=[...(free.length?free:cells)].sort((a,b)=>{const[p,q]=point(a),[u,v]=point(b);return (p+.5-cx)**2+(q+.5-cy)**2-((u+.5-cx)**2+(v+.5-cy)**2);})[0];
     const [lx,ly]=point(nearest);svg+=`<g class="room-label" pointer-events="none"><text x="${lx+.5}" y="${ly+.42}" text-anchor="middle">${esc(room.name)}</text><text class="area-label" x="${lx+.5}" y="${ly+.8}" text-anchor="middle">${roomArea(level,layout,room.id)}㎡</text></g>`;
   }
-  for(const object of layout.objects)svg+=`<g data-object-id="${esc(object.id)}">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}${frontAnnotationSVG(level,layout,object)}</g>`;
+  for(const object of layout.objects)svg+=`<g data-object-id="${esc(object.id)}">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}${frontAnnotationSVG(level,layout,object)}${instanceBadgeSVG(object)}</g>`;
   const selected=layout.objects.find(o=>o.id===selectedId);
-  if(selected){const r=bounds(footprint(selected));svg+=`<rect class="selected-outline" x="${r.x-.06}" y="${r.y-.06}" width="${r.w+.12}" height="${r.h+.12}" rx=".06" fill="none" stroke="#b4803e" stroke-width=".06" stroke-dasharray=".13 .07" pointer-events="none"/>`;}
+  if(selected)svg+=footprintSVG(selected,{stroke:'#b4803e',width:.06,dash:'.13 .07'});
   svg+='<g id="drawing-preview" pointer-events="none"></g>';
   return `${paperGrid}<div class="map-input" aria-hidden="true"></div><svg id="blueprint" viewBox="0 0 24 14" role="img" aria-label="户型图纸，当前使用${toolLabel()}工具"><g class="plan-content">${svg}</g></svg>`;
 }
@@ -149,6 +151,15 @@ function mobilePaletteButtonHTML(){
   const name=tool==='object'?OBJECTS[selectedObject].name:tool==='room'?level.rooms.find(r=>r.id===selectedRoom)?.name:{door:'门',window:'窗',open:'开放连接',eraser:'擦除范围'}[tool];
   return `<button class="mobile-palette-trigger" data-action="toggle-palette" aria-label="选择物件" aria-expanded="${mobilePaletteOpen}"><span>${esc(name||'选择物件')}</span>${icon('chevron')}</button>`;
 }
+function tagButtonHTML(active,selected){
+  if(!active||(level.instanceSlots||[]).every(slot=>slot.kind!==active.kind))return '';
+  const tag=selected?.tag||(pendingTag??availableTags(level,layout,active.kind)[0]?.tag)||'标';
+  return `<button class="tag-button" data-action="furniture-tag" aria-label="家具标记" title="选择或交换家具标记">${esc(tag)}</button>`;
+}
+function tagModalHTML(){
+  const selected=selectedFurniture(),kind=selected?.kind||selectedObject,slots=(level.instanceSlots||[]).filter(slot=>slot.kind===kind);
+  return `<div class="modal-shade"><section class="modal instance-dialog" role="dialog" aria-modal="true" aria-label="家具标记"><button class="modal-close icon-button" data-action="close-modal" aria-label="关闭标记选择">${icon('close')}</button><h2>家具标记</h2><p>${selected?'选择A或B；标记已使用时，两件家具会交换标记，位置不变。':'新家具会自动分配未使用的标记，也可以手动指定。'}</p><div class="instance-choices">${slots.map(slot=>{const owner=layout.objects.find(o=>o.tag===slot.tag);return `<button data-instance-choice="${slot.tag}" ${!selected&&owner?'disabled':''}><strong>${slot.tag}</strong><span>${esc(OBJECTS[kind].name)}${owner?' · 已使用':''}</span></button>`;}).join('')}</div><div class="instance-actions">${!selected?'<button data-instance-choice="auto">自动分配</button>':''}<button data-instance-choice="none">${selected?'取消标记':'不标记'}</button><button class="primary" data-action="close-modal">返回</button></div></section></div>`;
+}
 function toolbarHTML(){
   const palette=paletteForLevel(level,tutorialStage);
   const selected=selectedFurniture(),active=selected|| (tool==='object'?{kind:selectedObject,rotation}:null);
@@ -159,18 +170,12 @@ function toolbarHTML(){
     options+=[['door','门','入户 / 室内'],['window','窗','外墙窗户'],['open','开放连接','移除隔墙']].filter(([key])=>palette.boundaries.includes(key)).map(([key,name,note])=>`<button class="edge-chip ${tool===key?'active':''}" data-tool="${key}">${icon(key)}<span>${name}</span></button>`).join('');
     options+=Object.entries(OBJECTS).filter(([key])=>palette.objectKinds.includes(key)).map(([key,def])=>`<button data-object="${key}" class="object-chip ${tool==='object'&&selectedObject===key?'active':''}">${objectIcon(key,selectedObject===key?rotation:0)}<span>${def.name}</span></button>`).join('');
   }
-  return `<div class="toolbelt"><div class="tool-main"><div class="tool-modes">${[['draw','room','铅笔','1'],['erase','eraser','橡皮','2'],['move','hand','抓手','3']].map(([mode,key,label,hotkey])=>`<button class="mode-button ${mode==='draw'?!['eraser','hand'].includes(tool)?'active':'':tool===key?'active':''}" data-mode="${mode}" aria-label="${label}" title="${label}（${hotkey}）">${icon(key)}<span>${label}</span><kbd>${hotkey}</kbd></button>`).join('')}</div>${mobilePaletteButtonHTML()}<span class="palette-strip-label">房间 · 门窗 · 开放连接 · 家具</span><div class="rotation-control">${active?`<span class="selected-item">${selected?'已选':'待放'}：${OBJECTS[active.kind].name}</span><button class="rotate-button" data-action="rotate" title="右键或R也能旋转">${icon('rotate')}<span>转向 <b data-angle>${active.rotation||0}°</b></span><kbd>R</kbd></button>`:''}</div></div><div class="palette-row"><button class="palette-scroll" data-action="palette-left" aria-label="向左滚动工具带"><kbd>A</kbd></button><div class="tool-options" data-section="${tool==='hand'?'none':tool==='eraser'?'erase':'all'}">${options}</div><button class="palette-scroll" data-action="palette-right" aria-label="向右滚动工具带"><kbd>D</kbd></button></div></div>`;
+  return `<div class="toolbelt"><div class="tool-main"><div class="tool-modes">${[['draw','room','铅笔','1'],['erase','eraser','橡皮','2'],['move','hand','抓手','3']].map(([mode,key,label,hotkey])=>`<button class="mode-button ${mode==='draw'?!['eraser','hand'].includes(tool)?'active':'':tool===key?'active':''}" data-mode="${mode}" aria-label="${label}" title="${label}（${hotkey}）">${icon(key)}<span>${label}</span><kbd>${hotkey}</kbd></button>`).join('')}</div>${mobilePaletteButtonHTML()}<span class="palette-strip-label">房间 · 门窗 · 开放连接 · 家具</span><div class="rotation-control">${tagButtonHTML(active,selected)}${active?`<span class="selected-item">${selected?'已选':'待放'}：${esc(instanceName(active))}</span><button class="rotate-button" data-action="rotate" title="右键或R也能旋转">${icon('rotate')}<span>转向 <b data-angle>${active.rotation||0}°</b></span><kbd>R</kbd></button>`:''}</div></div><div class="palette-row"><button class="palette-scroll" data-action="palette-left" aria-label="向左滚动工具带"><kbd>A</kbd></button><div class="tool-options" data-section="${tool==='hand'?'none':tool==='eraser'?'erase':'all'}">${options}</div><button class="palette-scroll" data-action="palette-right" aria-label="向右滚动工具带"><kbd>D</kbd></button></div></div>`;
 }
 function directionOverlay(){
   const rule=level.rules.find(r=>r.id===inspectedRule);if(!rule)return '';if(rule.type!=='direction')return spatialRuleSVG(level,layout,rule);
   const outer=bounds(level.outline),sources=selectedObjects(layout,rule.source);
-  return sources.map(o=>{const b=bounds(footprint(o));let r;
-    if(rule.direction==='N')r={x:b.x,y:outer.y,w:b.w,h:b.y-outer.y};
-    if(rule.direction==='S')r={x:b.x,y:b.y+b.h,w:b.w,h:outer.y+outer.h-b.y-b.h};
-    if(rule.direction==='W')r={x:outer.x,y:b.y,w:b.x-outer.x,h:b.h};
-    if(rule.direction==='E')r={x:b.x+b.w,y:b.y,w:outer.x+outer.w-b.x-b.w,h:b.h};
-    return `<g pointer-events="none"><rect x="${r.x}" y="${r.y}" width="${Math.max(0,r.w)}" height="${Math.max(0,r.h)}" fill="url(#direction-hatch)" stroke="#b95b50" stroke-width=".035"/><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="none" stroke="#b95b50" stroke-width=".065"/></g>`;
-  }).join('');
+  return sources.map(o=>directionBands(footprint(o),rule.direction,outer).map(r=>`<g pointer-events="none"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="url(#direction-hatch)" stroke="#b95b50" stroke-width=".035"/></g>`).join('')+footprintSVG(o,{stroke:'#b95b50',width:.065})).join('');
 }
 const GUIDE=[
   ['先读需求，再画图纸','目标是在固定外轮廓内安排房间、门窗和家具，满足左侧要求，再通过手机提交。你的现有图纸会保留。','开始操作'],
@@ -213,10 +218,11 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.6.0</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.7.0</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
+  if(modal==='furniture-tag')return tagModalHTML();
   if(modal==='game-menu')return `<div class="modal-shade"><section class="modal game-menu-modal" role="dialog" aria-label="游戏菜单"><h2>游戏菜单</h2><button data-action="main-menu">返回主菜单</button><button data-action="menu-settings">设置</button><button data-action="tutorial">当前操作提示</button><button data-action="help">操作说明</button><button class="primary" data-action="close-modal">继续游戏</button></section></div>`;
   if(modal==='history'&&viewingCommission){const item=viewingCommission;return `<div class="modal-shade"><section class="modal history-view" role="dialog" aria-modal="true" aria-label="历史图纸"><header><div><h2>${esc(item.title)}</h2><p>已完成 · 查看历史图纸</p></div><button class="icon-button" data-action="close-history" aria-label="返回当前委托">${icon('close')}</button></header><div class="history-plan">${renderPlan(item.level,item.layout)}</div><button class="primary" data-action="close-history">返回当前委托</button></section></div>`;}
   if(modal==='return-menu')return `<div class="modal-shade"><section class="modal return-dialog" role="dialog" aria-modal="true" aria-labelledby="return-title" aria-describedby="return-message"><button class="modal-close icon-button" data-action="close-modal" aria-label="取消返回主菜单">${icon('close')}</button><h2 id="return-title">返回主菜单</h2><p id="return-message">保存当前进度并返回主菜单？</p><div class="return-actions"><button data-action="close-modal" autofocus>取消</button><button class="primary" data-action="confirm-main-menu">确定</button></div></section></div>`;
@@ -262,8 +268,13 @@ document.addEventListener('click',async event=>{
   const inspect=event.target.closest('[data-inspect]');if(inspect){inspectedRule=inspectedRule===inspect.dataset.inspect?null:inspect.dataset.inspect;guideStep=null;render();return;}
   const toolButton=event.target.closest('[data-tool]');if(toolButton){mobilePaletteOpen=false;tool=lastDrawTool=toolButton.dataset.tool;selectedId=null;hoverPoint=null;render();return;}
   const room=event.target.closest('[data-room]');if(room){mobilePaletteOpen=false;selectedRoom=room.dataset.room;tool=lastDrawTool='room';selectedId=null;hoverPoint=null;render();return;}
-  const object=event.target.closest('[data-object]');if(object){mobilePaletteOpen=false;selectedObject=object.dataset.object;tool=lastDrawTool='object';selectedId=null;hoverPoint=null;render();return;}
+  const object=event.target.closest('[data-object]');if(object){mobilePaletteOpen=false;selectedObject=object.dataset.object;pendingTag=null;tool=lastDrawTool='object';selectedId=null;hoverPoint=null;render();return;}
   const filter=event.target.closest('[data-filter]');if(filter){mobilePaletteOpen=false;eraseFilter=filter.dataset.filter;render();return;}
+  const choice=event.target.closest('[data-instance-choice]');if(choice){
+    const value=choice.dataset.instanceChoice,selected=selectedFurniture();
+    if(selected){const result=assignFurnitureTag(level,layout,selected.id,value==='none'?'':value);if(result.error){toast(result.error);return;}modal=null;commit(result.layout,'object');}
+    else{pendingTag=value==='auto'?null:value==='none'?'':value;modal=null;render();}return;
+  }
   const action=event.target.closest('[data-action]')?.dataset.action;
   switch(action){
     case'start-game':screen='game';modal=null;if(!Object.keys(layout.cells).length)phone=true;render();break;
@@ -273,6 +284,7 @@ document.addEventListener('click',async event=>{
     case'new-game':generationRequest++;preparingCommission=false;localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;seenLessons=[];loadGameLevel(createOpeningLevel(),{archive:false});break;
     case'close-settings':modal=null;render();break;
     case'undo':undo();break;case'redo':redo();break;
+    case'furniture-tag':modal='furniture-tag';render();break;
     case'rotate':rotateCurrent();break;
     case'tutorial':contentLessons=lessonsForLevel(level,{includeSeen:true});lessonIndex=0;guideStep=0;manualGuide=true;phone=false;modal=null;render();break;
     case'lesson-back':lessonIndex=Math.max(0,lessonIndex-1);render();break;
@@ -352,12 +364,14 @@ function closestEdge(p){
   for(const segment of level.geometry?.segments||[]){const{a,b}=segment,dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((p.x-a[0])*dx+(p.y-a[1])*dy)/(dx*dx+dy*dy))),distance=Math.hypot(p.x-a[0]-t*dx,p.y-a[1]-t*dy);if(distance<best){best=distance;nearest=segment.key;}}
   const x=Math.floor(p.x),y=Math.floor(p.y),dx=p.x-x,dy=p.y-y;const min=Math.min(dx,1-dx,dy,1-dy);const regular=min===dx?edgeKey('v',x,y):min===1-dx?edgeKey('v',x+1,y):min===dy?edgeKey('h',x,y):edgeKey('h',x,y+1),info=edgeInfo(level,layout,regular);return nearest&&(!(info.boundary||info.internal||info.fixed)||best<min)?nearest:regular;}
 function rectangle(a,b){const ax=Math.floor(a.x),ay=Math.floor(a.y),bx=Math.floor(b.x),by=Math.floor(b.y);return{x:Math.min(ax,bx),y:Math.min(ay,by),w:Math.abs(ax-bx)+1,h:Math.abs(ay-by)+1};}
+function placementCandidate(p,id){return placementIdentity(level,layout,{id,kind:selectedObject,x:Math.floor(p.x),y:Math.floor(p.y),rotation},pendingTag);}
+function placeFurnitureAt(p){const identity=placementCandidate(p,'user-'+createId());return identity.error?identity:placeObject(level,layout,identity.object);}
 function showPlacementPreview(p){
   const node=$('#drawing-preview');if(!node)return;
-  const object={id:'__placement-preview__',kind:selectedObject,x:Math.floor(p.x),y:Math.floor(p.y),rotation};
-  const result=placeObject(level,layout,object),b=bounds(footprint(object)),valid=!!result.layout;
-  node.innerHTML=`<g pointer-events="none"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx=".04" fill="${valid?'#74a471':'#d78276'}" fill-opacity=".2" stroke="${valid?'#497b45':'#b05f54'}" stroke-width=".055" stroke-dasharray=".12 .07"/><g opacity=".8">${furnitureSVG(object.kind,object.x,object.y,rotation)}</g>${usagePreviewSVG(level,result.layout||layout,object)}</g>`;
-  if($('#placement-status'))$('#placement-status').textContent=valid?`${OBJECTS[selectedObject].name} · ${rotation}° · 左键放下 / 右键转向`:result.error+' · 右键 / R 可转向';
+  const identity=placementCandidate(p,'__placement-preview__'),object=identity.object||{id:'__placement-preview__',kind:selectedObject,x:Math.floor(p.x),y:Math.floor(p.y),rotation};
+  const result=identity.error?identity:placeObject(level,layout,object),valid=!!result.layout;
+  node.innerHTML=`<g pointer-events="none">${footprintSVG(object,{fill:valid?'#74a471':'#d78276',stroke:valid?'#497b45':'#b05f54',width:.055,dash:'.12 .07',opacity:.2})}<g opacity=".8">${furnitureSVG(object.kind,object.x,object.y,rotation)}${instanceBadgeSVG(object)}</g>${usagePreviewSVG(level,result.layout||layout,object)}</g>`;
+  if($('#placement-status'))$('#placement-status').textContent=valid?`${instanceName(object)} · ${rotation}° · 左键放下 / 右键转向`:result.error+' · 右键 / R 可转向';
 }
 function rotateCurrent(){
   gameAudio.play('place');
@@ -382,11 +396,11 @@ function previewAt(p){
     node.innerHTML=`<rect clip-path="url(#plot-clip)" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${drag.mode==='eraser'?'#cf7767':room.color}" opacity=".65" stroke="${drag.mode==='eraser'?'#9b4d41':'#4b6750'}" stroke-width=".05" stroke-dasharray=".12 .08"/><text x="${r.x+r.w/2}" y="${r.y+r.h/2+.1}" font-size=".4" text-anchor="middle" fill="#374633">${actualArea}㎡</text>`;
   }else if(['door','window','open'].includes(drag.mode)){
     drag.edges.add(closestEdge(p));node.innerHTML=[...drag.edges].map(k=>{const{axis,x,y}=edgeParts(k);return `<path d="${edgePath(k)}" stroke="#547758" stroke-width=".14" opacity=".65"/>`;}).join('');
-  }else if(drag.object){const object={...drag.object,x:Math.floor(p.x)-drag.offset.x,y:Math.floor(p.y)-drag.offset.y},r=bounds(footprint(object)),valid=!!placeObject(level,layout,object).layout;node.innerHTML=`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${valid?'#74a471':'#d78276'}" fill-opacity=".2" stroke="${valid?'#497b45':'#b05f54'}" stroke-width=".045"/><g opacity=".75">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}</g>${usagePreviewSVG(level,layout,object)}`;}
+  }else if(drag.object){const object={...drag.object,x:Math.floor(p.x)-drag.offset.x,y:Math.floor(p.y)-drag.offset.y},valid=!!placeObject(level,layout,object).layout;node.innerHTML=`${footprintSVG(object,{fill:valid?'#74a471':'#d78276',stroke:valid?'#497b45':'#b05f54',opacity:.2})}<g opacity=".75">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}${instanceBadgeSVG(object)}</g>${usagePreviewSVG(level,layout,object)}`;}
 }
 function finish(event){
   if(!drag)return;if(drag.mode==='pan'){movePan(event);drag=null;$('#blueprint')?.classList.remove('panning');syncView();return;}if(drag.object&&event.button===2)return;const current=drag;drag=null;const p=svgPoint(event);let result;
-  if(current.mode==='object'){hoverPoint=null;result=placeObject(level,layout,{id:'user-'+createId(),kind:selectedObject,x:Math.floor(p.x),y:Math.floor(p.y),rotation});}
+  if(current.mode==='object'){hoverPoint=null;result=placeFurnitureAt(p);}
   else if(current.mode==='room')result=paintRoom(level,layout,selectedRoom,rectangle(current.start,p));
   else if(current.mode==='eraser')result={layout:eraseRect(level,layout,rectangle(current.start,p),eraseFilter)};
   else if(['door','window','open'].includes(current.mode)){
@@ -446,7 +460,7 @@ function bindBoard(){
     if(tool==='object'&&event.button===2){event.preventDefault();hoverPoint=p;rotateCurrent();return;}
     if(tool==='object'&&event.button===0){
       if(event.pointerType==='touch'){drag={mode:'object',start:p,last:p};hoverPoint=p;svg.setPointerCapture(event.pointerId);event.preventDefault();showPlacementPreview(p);return;}
-      const result=placeObject(level,layout,{id:'user-'+createId(),kind:selectedObject,x:Math.floor(p.x),y:Math.floor(p.y),rotation});
+      const result=placeFurnitureAt(p);
       if(result.error){gameAudio.play('error');toast(result.error);}else{hoverPoint=null;commit(result.layout,'object');}return;
     }
     const mode=event.button===1?'hand':event.button===2?'eraser':tool;

@@ -74,3 +74,12 @@ test('新机制引入关的回退保留多件、量词、正面和距离，不�
   const rescued=await createCommissionGenerator({WorkerClass:WrongWorker,fetcher})(44);
   assert.equal(rescued.generation.source,'verified-fallback');assert.ok(rescued.rules.some(r=>r.type==='distance'));
 });
+
+test('标记和L形引入关回退不丢内容，缺L形的有效Worker题也被拒绝',async()=>{
+  const generate=createCommissionGenerator({WorkerClass:null,fetcher});
+  const named=await generate(46);assert.ok(named.instanceSlots.length);assert.ok(named.rules.some(r=>r.source?.tag||r.target?.tag));
+  const l=await generate(48);assert.ok(l.reference.objects.some(o=>o.kind==='sectional'));assert.ok(l.instanceSlots.length);
+  const wrong=createCampaignLevel(46);wrong.chapter=48;
+  class MissingL{postMessage(){queueMicrotask(()=>this.onmessage({data:{level:wrong}}));}terminate(){}}
+  const rescued=await createCommissionGenerator({WorkerClass:MissingL,fetcher})(48);assert.equal(rescued.generation.source,'verified-fallback');assert.ok(rescued.reference.objects.some(o=>o.kind==='sectional'));
+});

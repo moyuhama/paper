@@ -1,10 +1,10 @@
 import {OBJECTS,objectRoom,useSpaceResults,furnitureDistances,evaluateRule} from './engine.js';
 import {poseProbes} from './clue-quality.js';
 export function referenceUseSpaceOK(level,layout){
-  return (level.chapter||0)<42||useSpaceResults(level,layout,{kind:'sofa',roomId:'living'},1).every(item=>item.ok);
+  return (level.chapter||0)<42||['sofa','sectional'].every(kind=>useSpaceResults(level,layout,{kind,roomId:'living'},1).every(item=>item.ok));
 }
 export function addSpatialRules(level,add,{chapter,deadline}){
-  if(chapter>=42)add({type:'useSpace',source:{kind:'sofa',roomId:'living'},group:'living',quantifier:'all',depth:1,text:'每个双人沙发正面须留1m深的整排空地，且可从入户门走到'});
+  if(chapter>=42)for(const kind of ['sofa','sectional'].filter(kind=>level.reference.objects.some(o=>o.kind===kind)))add({type:'useSpace',source:{kind,roomId:'living'},group:'living',quantifier:'all',depth:1,text:kind==='sofa'?'每个双人沙发正面须留1m深的整排空地，且可从入户门走到':'每个L形沙发座位正面须留1m使用区（按虚线），且可从入户门走到'});
   if(chapter<44)return;
   const probes=poseProbes(level,{deadline}),groups=[...new Map(level.reference.objects.map(o=>{const roomId=objectRoom(level.reference,o);return [roomId+':'+o.kind,{roomId,kind:o.kind}];})).values()];
   let best,bestScore=0;

@@ -1,4 +1,4 @@
-import {frontAnnotationSVG} from './rule-visuals.js';
+import {frontAnnotationSVG,instanceBadgeSVG} from './rule-visuals.js';
 import {roomArea} from './geometry.js';
 import {bounds,point,allEdges,edgeParts,edgeInfo,boundaryKind,footprint} from './engine.js';
 import {furnitureSVG,structureSVG,cellSVG,diagonalBoundarySVG} from './drawing-assets.js';
@@ -21,7 +21,7 @@ export function renderPlan(level,layout=level.reference){
     }
   }
   s+=structureSVG(level);
-  for(const object of layout.objects)s+=furnitureSVG(object.kind,object.x,object.y,object.rotation)+frontAnnotationSVG(level,layout,object);
+  for(const object of layout.objects)s+=furnitureSVG(object.kind,object.x,object.y,object.rotation)+frontAnnotationSVG(level,layout,object)+instanceBadgeSVG(object);
   const occupied=new Set(layout.objects.flatMap(footprint));
   for(const room of level.rooms){
     const cells=Object.keys(layout.cells).filter(c=>layout.cells[c]===room.id);if(!cells.length)continue;const rb=bounds(cells),cx=rb.x+rb.w/2,cy=rb.y+rb.h/2;

@@ -1,3 +1,4 @@
+import {configureInstances,addInstanceRule,instanceName} from './instances.js';
 import {referenceUseSpaceOK,addSpatialRules} from './spatial-generation.js';
 import {addFurnitureInstances,mechanicsAt,mechanicsIntroducedAt} from './mechanics.js';
 import {describeStructure,repetitionScore} from './puzzle-diversity.js';
@@ -10,7 +11,7 @@ import {createResidentialPlan} from './residential.js';
 import {unlockedFurnitureAt,furnitureIntroducedAt} from './progression.js';
 import {generationQualityErrors} from './generation-quality.js';
 import {walkabilityErrors,crossesFixedWall,footprint,neighbors,edgeCells,boundaryKind,ENGINE_VERSION,OBJECTS,cellKey,point,allEdges,edgeInfo,edgeParts,sharedEdges,roomEdges,objectRoom,directionCounts,evaluateLayout,validateLevel,clone} from './engine.js';
-export const GENERATOR_VERSION='0.6.0';
+export const GENERATOR_VERSION='0.7.0';
 // Catalogue changes do not need to reshuffle the established spatial seed stream.
 const SEED_STREAM_VERSION='0.2.0';
 const ROLES=ROOM_CATALOG;
@@ -59,6 +60,7 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
   }
   const entry=plan.entryEdge;layout.edges[entry]={kind:'door'};
   placeReferenceFurniture(level,layout,rand,furnitureByRoom,deadline);
+  configureInstances(level,layout,chapter||0);
   for(const room of level.rooms){
     for(const side of ['N','S','W','E']){
       const edges=roomEdges(level,layout,room.id,side).filter(key=>edgeInfo(level,layout,key).windowAllowed&&key!==entry);
@@ -106,19 +108,19 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
   if(!basic){
     const candidates=[];
     for(const object of layout.objects){
-      const source={kind:object.kind,roomId:layout.cells[cellKey(object.x,object.y)]};
-      const targets=[...layout.objects.filter(o=>o.id!==object.id&&layout.cells[cellKey(o.x,o.y)]!==source.roomId).map(o=>({kind:o.kind,roomId:layout.cells[cellKey(o.x,o.y)]})),{kind:'window'},{kind:'window',roomId:source.roomId}];
+      const source={kind:object.kind,roomId:layout.cells[cellKey(object.x,object.y)],...(object.tag?{tag:object.tag}:{})};
+      const targets=[...layout.objects.filter(o=>o.id!==object.id&&layout.cells[cellKey(o.x,o.y)]!==source.roomId).map(o=>({kind:o.kind,roomId:layout.cells[cellKey(o.x,o.y)],...(o.tag?{tag:o.tag}:{})})),{kind:'window'},{kind:'window',roomId:source.roomId}];
       for(const target of targets)for(const direction of ['N','S','W','E']){
         const counts=directionCounts(level,layout,source,target,direction);
         const multiple=counts.length>1,mixed=new Set(counts).size>1;
         if(mixed&&(chapter||0)<40)continue;
         const quantifier=mixed?'any':'all';
-        const label=target.roomId?`${names[target.roomId]}的${OBJECTS[target.kind]?.name||'窗户'}`:'窗户（不限房间）';
-        for(const count of new Set(counts))candidates.push({type:'direction',group:source.roomId,source,target,direction,value:count,forbidden:count===0,...(multiple?{quantifier}:{}),text:`${multiple?(quantifier==='all'?'每个':'至少一个'):''}${OBJECTS[source.kind].name}${SIDES[direction]}侧${count===0?'不能有':'需有'}${label}${count?' ×'+count:''}`});
+        const label=target.roomId?`${names[target.roomId]}的${OBJECTS[target.kind]?.name||'窗户'}${target.tag?' '+target.tag:''}`:'窗户（不限房间）';
+        for(const count of new Set(counts))candidates.push({type:'direction',group:source.roomId,source,target,direction,value:count,forbidden:count===0,...(multiple?{quantifier}:{}),text:`${multiple?(quantifier==='all'?'每个':'至少一个'):''}${instanceName(object)}${SIDES[direction]}侧${count===0?'不能有':'需有'}${label}${count?' ×'+count:''}`});
       }
     }
     const unique=items=>[...new Map(items.map(r=>[JSON.stringify([r.source,r.target,r.direction]),r])).values()];
-    const prioritized=items=>unique([...newFurniture.flatMap(kind=>items.filter(r=>r.source.kind===kind).slice(0,1)),...items]);
+    const prioritized=items=>unique([...newFurniture.flatMap(kind=>items.filter(r=>r.source.kind===kind).slice(0,4)),...items]);
     const positive=prioritized(shuffled(unique(candidates.filter(r=>!r.forbidden)),rand)).slice(0,expanded?48:complex?16:7);
     const negative=prioritized(shuffled(unique(candidates.filter(r=>r.forbidden)),rand)).slice(0,expanded?32:complex?8:3);
     for(const rule of [...positive,...negative])add(rule);
@@ -126,6 +128,7 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
   level.reference=layout;
   if(chapter>=38)level.mechanics=mechanicsAt(chapter);
   if(chapter!==undefined)level.progression={newFurniture,newMechanics:mechanicsIntroducedAt(chapter)};
+  addInstanceRule(level,add);
   addSpatialRules(level,add,{chapter:chapter||0,deadline});
   if(expanded)selectClues(level,chapter||30,{deadline});
   const quality=generationQualityErrors(level);if(quality.length)throw new Error('生成质量未通过：'+quality.join('；'));
@@ -190,6 +193,7 @@ function campaignCandidate(chapter,variant=0,options={}){
   if(chapter===1)return createOpeningLevel();
   const mode=chapter===2?'intro':chapter<9?'standard':'complex',level=generateLevel('委托-'+chapter+(variant?'-'+variant:''),mode,{...options,chapter});
   if(chapter<4)level.rules=level.rules.filter(r=>r.type!=='direction');
+  if(chapter>=46&&!level.rules.some(r=>r.source?.tag||r.target?.tag))throw new Error('指定家具缺少有效标记条件');
   if(chapter===40&&!level.rules.some(r=>r.type==='direction'&&r.quantifier==='any'))throw new Error('量词教学缺少有效的至少一个条件');
   level.id='story:'+chapter;level.chapter=chapter;level.title='第'+chapter+'份委托';level.seed=level.title;
   if(!evaluateLayout(level,level.reference).complete)throw new Error('委托参考解未通过验证');

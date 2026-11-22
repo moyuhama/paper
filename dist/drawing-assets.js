@@ -1,10 +1,11 @@
 import {cellPolygon} from './geometry.js';
-import {OBJECTS,edgeParts} from './engine.js';
+import {OBJECTS,edgeParts,footprint,point} from './engine.js';
 export function furnitureSVG(kind,x,y,rotation=0,scale=1){
   const def=OBJECTS[kind],w=def.w,h=def.h;
   const shapes={
     bed:`<rect x=".08" y=".08" width="1.84" height="1.84" rx=".08"/><path d="M.08 .7h1.84M1 .12v.52"/><rect x=".2" y=".18" width=".65" height=".36" rx=".04"/><rect x="1.15" y=".18" width=".65" height=".36" rx=".04"/>`,
     singleBed:'<rect x=".08" y=".08" width=".84" height="1.84" rx=".07"/><path d="M.08 .65h.84"/><rect x=".2" y=".2" width=".6" height=".3" rx=".04"/>',
+    sectional:'<path d="M.08 .08H2.92V.92H.92V1.92H.08Z"/><path d="M.25 .22H2.76V.38H.4V1.75H.24ZM1 .4v.42M2 .4v.42M.42 1h.4"/>',
     sofa:'<rect x=".05" y=".1" width="1.9" height=".8" rx=".12"/><path d="M.3 .2v.62M1.7 .2v.62M.3 .34h1.4M1 .34v.5"/>',
     chair:'<rect x=".08" y=".08" width=".84" height=".84" rx=".12"/><path d="M.26 .2v.6M.74 .2v.6M.26 .3h.48"/>',
     table:'<rect x=".4" y=".3" width="1.2" height="1.4" rx=".08"/><path d="M.08 .55h.25v.35H.08zM.08 1.1h.25v.35H.08zM1.67 .55h.25v.35h-.25zM1.67 1.1h.25v.35h-.25zM.75 .05h.5v.2h-.5zM.75 1.75h.5v.2h-.5z"/>',
@@ -61,4 +62,10 @@ export function diagonalBoundarySVG(level,key,item){
     svg+=line('#faf8ee',.13)+`<path d="M${x} ${y}l${nx*.75*sign} ${ny*.75*sign}" stroke="#777e67" stroke-width=".03"/>`;
   }
   return svg;
+}
+
+export function footprintSVG(object,{fill='none',stroke='#b4803e',width=.05,dash='',opacity=1}={}){
+  const cells=footprint(object),set=new Set(cells),fills=[],edges=[];
+  for(const cell of cells){const[x,y]=point(cell);fills.push(`M${x} ${y}h1v1h-1Z`);if(!set.has(`${x-1},${y}`))edges.push(`M${x} ${y}v1`);if(!set.has(`${x+1},${y}`))edges.push(`M${x+1} ${y}v1`);if(!set.has(`${x},${y-1}`))edges.push(`M${x} ${y}h1`);if(!set.has(`${x},${y+1}`))edges.push(`M${x} ${y+1}h1`);}
+  return `<g pointer-events="none"><path d="${fills.join('')}" fill="${fill}" fill-opacity="${opacity}" stroke="none"/><path d="${edges.join('')}" fill="none" stroke="${stroke}" stroke-width="${width}" ${dash?`stroke-dasharray="${dash}"`:''}/></g>`;
 }

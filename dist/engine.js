@@ -4,7 +4,7 @@ export {roomArea} from './geometry.js';
 export const ENGINE_VERSION = 'prototype-1';
 import {OBJECTS} from './catalog.js';
 export {OBJECTS} from './catalog.js';
-export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage','connectionCount','walkable','useSpace','distance']);
+export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage','connectionCount','walkable','useSpace','distance','instances']);
 export const clone = value => structuredClone(value);
 export const cellKey = (x,y) => `${x},${y}`;
 export const point = key => key.split(',').map(Number);
@@ -46,8 +46,8 @@ export function bounds(cells) {
 }
 export function footprint(object) {
   const def=OBJECTS[object.kind];if(!def)return [];
-  const rotated=(object.rotation||0)%180!==0,w=rotated?def.h:def.w,h=rotated?def.w:def.h;
-  return Array.from({length:w*h},(_,i)=>cellKey(object.x+i%w,object.y+Math.floor(i/w)));
+  const shape=def.shape||Array.from({length:def.w*def.h},(_,i)=>[i%def.w,Math.floor(i/def.w)]);
+  return shape.map(([a,b])=>{let x=a,y=b;switch(object.rotation||0){case 90:x=def.h-1-b;y=a;break;case 180:x=def.w-1-a;y=def.h-1-b;break;case 270:x=b;y=def.w-1-a;break;}return cellKey(object.x+x,object.y+y);}).sort((a,b)=>{const[x,y]=point(a),[u,v]=point(b);return y-v||x-u;});
 }
 export function objectRoom(layout,object) {
   const cells=footprint(object),ids=new Set(cells.map(c=>layout.cells[c]));
@@ -78,17 +78,28 @@ export function roomEdges(level,layout,roomId,side) {
 export function sharedEdges(level,layout,a,b,side) {
   return roomEdges(level,layout,a,side).filter(key=>edgeInfo(level,layout,key).rooms.includes(b));
 }
-export function selectedObjects(layout,selector){return layout.objects.filter(o=>(!selector.objectId||o.id===selector.objectId)&&o.kind===selector.kind&&(!selector.roomId||objectRoom(layout,o)===selector.roomId));}
+export function selectedObjects(layout,selector){return layout.objects.filter(o=>(!selector.objectId||o.id===selector.objectId)&&(!selector.tag||o.tag===selector.tag)&&o.kind===selector.kind&&(!selector.roomId||objectRoom(layout,o)===selector.roomId));}
 function entities(level,layout,selector) {
   if(selector.kind==='window'||selector.kind==='door'||selector.kind==='entry'){
     return Object.keys(layout.edges).filter(key=>boundaryKind(level,layout,key)===selector.kind).filter(key=>!selector.roomId||edgeInfo(level,layout,key).rooms.includes(selector.roomId)).map(key=>{const info=edgeInfo(level,layout,key);return {id:key,cells:info.cells.filter((c,i)=>info.inside[i])};});
   }
   return selectedObjects(layout,selector).map(o=>({id:o.id,cells:footprint(o)}));
 }
+export function directionBands(sourceCells,direction,outer){
+  const vertical=['N','S'].includes(direction),groups=new Map();
+  for(const cell of sourceCells){const[x,y]=point(cell),key=vertical?x:y,value=vertical?y:x;groups.set(key,[...(groups.get(key)||[]),value]);}
+  return [...groups].map(([axis,values])=>{
+    const lo=Math.min(...values),hi=Math.max(...values)+1;
+    if(direction==='N')return {x:axis,y:outer.y,w:1,h:Math.max(0,lo-outer.y)};
+    if(direction==='S')return {x:axis,y:hi,w:1,h:Math.max(0,outer.y+outer.h-hi)};
+    if(direction==='W')return {x:outer.x,y:axis,w:Math.max(0,lo-outer.x),h:1};
+    return {x:hi,y:axis,w:Math.max(0,outer.x+outer.w-hi),h:1};
+  });
+}
 export function inDirection(sourceCells,targetCells,direction) {
-  if(!sourceCells.length||!targetCells.length)return false;
-  const b=bounds(sourceCells);
-  return targetCells.some(cell=>{const[x,y]=point(cell);switch(direction){case'N':return x>=b.x&&x<b.x+b.w&&y<b.y;case'S':return x>=b.x&&x<b.x+b.w&&y>=b.y+b.h;case'W':return y>=b.y&&y<b.y+b.h&&x<b.x;case'E':return y>=b.y&&y<b.y+b.h&&x>=b.x+b.w;default:return false;}});
+  if(!sourceCells.length||!targetCells.length||!['N','S','W','E'].includes(direction))return false;
+  const all=bounds([...sourceCells,...targetCells]),bands=directionBands(sourceCells,direction,all);
+  return targetCells.some(cell=>{const[x,y]=point(cell);return bands.some(b=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h);});
 }
 export function directionCounts(level,layout,source,target,direction){
   const sources=entities(level,layout,source),targets=entities(level,layout,target);
@@ -141,13 +152,10 @@ export function frontDirection(object){
   return base<0?null:directions[(base+(object.rotation||0)/90)%4];
 }
 export function frontCells(object,depth=1){
-  const b=bounds(footprint(object)),direction=frontDirection(object),cells=[];
-  if(!direction)return cells;
-  for(let offset=1;offset<=depth;offset++){
-    if(direction==='N'||direction==='S')for(let x=b.x;x<b.x+b.w;x++)cells.push(cellKey(x,direction==='N'?b.y-offset:b.y+b.h-1+offset));
-    else for(let y=b.y;y<b.y+b.h;y++)cells.push(cellKey(direction==='W'?b.x-offset:b.x+b.w-1+offset,y));
-  }
-  return cells;
+  const direction=frontDirection(object);if(!direction)return [];
+  const vertical=['N','S'].includes(direction),groups=new Map();
+  for(const cell of footprint(object)){const[x,y]=point(cell),key=vertical?x:y,value=vertical?y:x;groups.set(key,[...(groups.get(key)||[]),value]);}
+  return [...groups].flatMap(([axis,values])=>Array.from({length:depth},(_,i)=>{const value=['N','W'].includes(direction)?Math.min(...values)-1-i:Math.max(...values)+1+i;return vertical?cellKey(axis,value):cellKey(value,axis);}));
 }
 export function useSpaceResults(level,layout,selector,depth=1){
   const {seen}=walkableFloor(level,layout);
@@ -157,12 +165,17 @@ export function useSpaceResults(level,layout,selector,depth=1){
     return {id:object.id,cells,ok:!!room&&!!cells.length&&!wall&&cells.every(c=>layout.cells[c]===room&&!level.geometry?.cellPolygons?.[c]&&seen.has(c))};
   });
 }
-// Exact squared straight-line distance between rectangular furniture edges.
-export function objectDistanceSquared(a,b){
-  const x=bounds(footprint(a)),y=bounds(footprint(b));
-  const dx=Math.max(0,x.x-y.x-y.w,y.x-x.x-x.w),dy=Math.max(0,x.y-y.y-y.h,y.y-x.y-x.h);
-  return dx*dx+dy*dy;
+// Compare real occupied unit squares, including concave furniture cutouts.
+export function objectClosestPoints(a,b){
+  const rectangles=o=>OBJECTS[o.kind]?.shape?footprint(o).map(c=>{const[x,y]=point(c);return {x,y,w:1,h:1};}):[bounds(footprint(o))];
+  const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));let best;
+  for(const x of rectangles(a))for(const y of rectangles(b)){
+    const ax=clamp(y.x+y.w/2,x.x,x.x+x.w),ay=clamp(y.y+y.h/2,x.y,x.y+x.h),bx=clamp(ax,y.x,y.x+y.w),by=clamp(ay,y.y,y.y+y.h),squared=(ax-bx)**2+(ay-by)**2;
+    if(!best||squared<best.squared)best={squared,a:[ax,ay],b:[bx,by]};
+  }
+  return best;
 }
+export function objectDistanceSquared(a,b){return objectClosestPoints(a,b).squared;}
 export function furnitureDistances(layout,source,target){
   const targets=selectedObjects(layout,target);
   return selectedObjects(layout,source).map(a=>{const values=targets.filter(b=>b.id!==a.id).map(b=>objectDistanceSquared(a,b));return values.length?Math.min(...values):null;});
@@ -171,6 +184,7 @@ export function evaluateRule(level,layout,rule) {
   let actual,ok=false;
   if(rule.roomId&&!Object.values(layout.cells).includes(rule.roomId))return {id:rule.id,group:rule.group||rule.roomId,ok:false,actual:'未绘制房间',text:rule.text,type:rule.type};
   switch(rule.type){
+    case'instances':{const found=rule.tags.filter(tag=>selectedObjects(layout,{kind:rule.kind,roomId:rule.roomId,tag}).length===1);actual=found.length;ok=found.length===rule.tags.length;break;}
     case'area':actual=roomArea(level,layout,rule.roomId);ok=compare(actual,rule);break;
     case'objectCount':actual=entities(level,layout,{kind:rule.kind,roomId:rule.roomId}).length;ok=compare(actual,rule);break;
     case'boundaryCount':actual=roomEdges(level,layout,rule.roomId,rule.side).filter(key=>boundaryKind(level,layout,key)===rule.kind).length;ok=compare(actual,rule);break;
@@ -216,11 +230,12 @@ export function integrityErrors(level,layout) {
 }
 export function validateLayoutShape(level,layout){
   if(!layout||!layout.cells||!layout.edges||!Array.isArray(layout.objects))return ['图纸缺少占地、边界或家具数据'];
-  const errors=[],edges=new Set(allEdges(level)),outline=new Set(level.outline),rooms=new Set(level.rooms.map(r=>r.id)),objectIds=new Set();
+  const errors=[],tags=new Set(),slots=new Map((level.instanceSlots||[]).map(slot=>[slot.tag,slot])),edges=new Set(allEdges(level)),outline=new Set(level.outline),rooms=new Set(level.rooms.map(r=>r.id)),objectIds=new Set();
   for(const[c,id]of Object.entries(layout.cells))if(!outline.has(c)||!rooms.has(id))errors.push('图纸含轮廓外占地或未知房间');
   for(const[k,v]of Object.entries(layout.edges))if(!edges.has(k)||!['window','door','open'].includes(v?.kind))errors.push('图纸含未知边界或边界类型');
   for(const o of layout.objects){
     if(!o||!OBJECTS[o.kind]||!Number.isSafeInteger(o.x)||!Number.isSafeInteger(o.y)||![0,90,180,270].includes(o.rotation||0))errors.push('家具类型、坐标或朝向无效');
+    if(o.tag!==undefined){const slot=slots.get(o.tag);if(!slot||slot.kind!==o.kind||tags.has(o.tag))errors.push('家具标记未知、类型不匹配或重复');tags.add(o.tag);}
     if(!o?.id||objectIds.has(o.id))errors.push('家具ID缺失或重复');objectIds.add(o?.id);
   }
   return [...new Set(errors)];
@@ -250,6 +265,11 @@ export function validateLevel(level) {
   for(const[key,item]of Object.entries(level.fixedEdges||{}))if(!legalEdges.has(key)||!['window','door'].includes(item?.kind))errors.push('固定元素须为有效边界上的门窗');
   for(const [cell,kind]of Object.entries(level.fixedAreas||{}))if(!validCell(cell)||level.outline.includes(cell)||!['column','shaft','courtyard'].includes(kind))errors.push('固定区域类型或占地无效');
   if(level.fixedWalls&&(!Array.isArray(level.fixedWalls)||level.fixedWalls.some(key=>!legalEdges.has(key))))errors.push('固定墙须位于有效边界');
+  const rawSlots=Array.isArray(level.instanceSlots)?level.instanceSlots:[],configuredSlots=rawSlots.filter(slot=>slot&&typeof slot==='object');
+  if(rawSlots.length!==configuredSlots.length)errors.push('家具标记定义无效');
+  if(level.instanceSlots!==undefined&&!Array.isArray(level.instanceSlots))errors.push('家具标记须为列表');
+  const slotTags=new Set();
+  for(const slot of configuredSlots){if(!slot||typeof slot!=='object'){errors.push('家具标记定义无效');continue;}if(!/^[A-Z]$/.test(slot.tag)||slotTags.has(slot.tag)||!OBJECTS[slot.kind]||!ids.has(slot.roomId))errors.push('家具标记定义无效或重复');slotTags.add(slot.tag);}
   const seen=new Set();
   for(const rule of level.rules||[]){
     if(!rule.id||seen.has(rule.id))errors.push('条件ID缺失或重复');seen.add(rule.id);
@@ -267,12 +287,15 @@ export function validateLevel(level) {
     if(rule.type==='useSpace'&&(!OBJECTS[rule.source?.kind]?.front||!Number.isInteger(rule.depth)||rule.depth<1||rule.depth>3))errors.push(`条件${rule.id}正面或使用深度无效`);
     if(rule.type==='distance'&&(!rule.target||!OBJECTS[rule.target.kind]||!Number.isFinite(rule.value)||rule.value<0||!['lte','gte'].includes(rule.op)))errors.push(`条件${rule.id}距离参数无效`);
     for(const selector of [rule.source,rule.target])if(selector?.objectId!==undefined&&(typeof selector.objectId!=='string'||!selector.objectId.length))errors.push(`条件${rule.id}实例标识无效`);
+    if(rule.type==='instances'&&(!rule.roomId||!OBJECTS[rule.kind]||!Array.isArray(rule.tags)||!rule.tags.length||new Set(rule.tags).size!==rule.tags.length||rule.tags.some(tag=>!configuredSlots.some(slot=>slot.tag===tag&&slot.kind===rule.kind&&slot.roomId===rule.roomId))))errors.push(`条件${rule.id}标记定义无效`);
+    for(const selector of [rule.source,rule.target])if(selector?.tag!==undefined&&(!configuredSlots.some(slot=>slot.tag===selector.tag&&slot.kind===selector.kind)||selector.objectId))errors.push(`条件${rule.id}引用无效家具标记`);
     if(rule.type==='objectCount'&&!OBJECTS[rule.kind])errors.push(`条件${rule.id}引用未知家具`);
     if(rule.type==='connectionCount'&&!['door','open'].includes(rule.kind))errors.push(`条件${rule.id}连接类型无效`);
     if(['boundaryCount','globalCount'].includes(rule.type)&&!['window','door','entry','open'].includes(rule.kind))errors.push(`条件${rule.id}边界类型无效`);
     if(['area','objectCount','boundaryCount','adjacent','fullOpen','openLength','connectionCount'].includes(rule.type)&&!rule.roomId)errors.push(`条件${rule.id}缺少房间`);
     if(['adjacent','fullOpen','openLength','connectionCount'].includes(rule.type)&&(!rule.targetRoomId||rule.targetRoomId===rule.roomId))errors.push(`条件${rule.id}目标房间无效`);
   }
+  for(const slot of configuredSlots)if(slot&&!level.rules?.some(r=>r.type==='instances'&&Array.isArray(r.tags)&&r.tags.includes(slot.tag)))errors.push('每个家具标记须有明示标记要求');
   if(!level.rules?.length)errors.push('关卡须包含条件');
   return [...new Set(errors)];
 }
@@ -314,6 +337,8 @@ export function placeObject(level,layout,object) {
   if(footprint(object).some(c=>level.geometry?.cellPolygons?.[c]))return {error:'家具不能越过斜墙，请放到完整可用空间'};
   if(crossesFixedWall(level,object))return {error:'家具不能跨越固定墙'};
   if(!objectRoom(next,object))return {error:'家具须完整放入同一房间'};
+  if(object.tag&&!(level.instanceSlots||[]).some(slot=>slot.tag===object.tag&&slot.kind===object.kind))return {error:'这个标记不适用于当前家具'};
+  if(object.tag&&next.objects.some(o=>o.id!==object.id&&o.tag===object.tag))return {error:'这个家具标记已被使用，请更换或交换标记'};
   const cells=new Set(footprint(object));if(next.objects.some(o=>o.id!==object.id&&footprint(o).some(c=>cells.has(c))))return {error:'家具不能重叠'};
   return {layout:next};
 }
