@@ -84,10 +84,15 @@ function groupsHTML(check){
 }
 function boardHTML(){
   let svg='<defs><pattern id="direction-hatch" width=".2" height=".2" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0v.2" stroke="#b95b50" stroke-width=".045" opacity=".5"/></pattern></defs>';
-  const paperGrid=settings.showGrid?'<svg id="paper-grid" aria-hidden="true" viewBox="0 0 24 14"><defs><pattern id="paper-meter-grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#9b9b7c" stroke-opacity=".32" stroke-width=".018"/></pattern></defs><rect id="map-grid" fill="url(#paper-meter-grid)"/></svg>':'';
-  for(const cell of level.outline){const[x,y]=point(cell),room=level.rooms.find(r=>r.id===layout.cells[cell]);svg+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${room?.color||'#faf8ee'}"/>`;}
-  // Grid remains visible above room fills.
-  if(settings.showGrid)for(const cell of level.outline){const[x,y]=point(cell);svg+=`<rect x="${x}" y="${y}" width="1" height="1" fill="none" stroke="#838674" stroke-opacity=".16" stroke-width=".015"/>`;}
+  // Room colour is beneath the requirements; walls, labels and furniture are above.
+  let roomFills='';
+  for(const cell of level.outline){
+    const[x,y]=point(cell),room=level.rooms.find(r=>r.id===layout.cells[cell]);
+    if(room)roomFills+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${room.color}"/>`;
+    // Preserve drawing hit targets without covering the text beneath this layer.
+    svg+=`<rect x="${x}" y="${y}" width="1" height="1" fill="transparent"/>`;
+  }
+  const paperGrid=`<svg id="paper-grid" aria-hidden="true" viewBox="0 0 24 14"><defs><pattern id="paper-meter-grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#9b9b7c" stroke-opacity=".32" stroke-width=".018"/></pattern></defs>${roomFills}${settings.showGrid?'<rect id="map-grid" fill="url(#paper-meter-grid)"/>':''}</svg>`;
   for(const key of allEdges(level)){
     const {axis,x,y}=edgeParts(key),info=edgeInfo(level,layout,key),item=layout.edges[key],kind=boundaryKind(level,layout,key);
     if(!info.outer&&(!info.rooms.some(Boolean)||info.rooms[0]===info.rooms[1]))continue;

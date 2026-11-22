@@ -67,7 +67,7 @@
 
 .rating-total{font:13px system-ui;color:#8b7b43;display:block;margin:1px 0 8px}.rating-summary{margin:5px 0}.rating-deductions{list-style:none;margin:8px 0 0;padding:8px 0 0;border-top:1px solid #d7d7c5;font-size:13px;color:#8e795f;line-height:1.8}.rating-deductions li{margin:2px 0}.rating-clean{font-size:13px;color:#809076;margin:6px 0}.rating-unknown{font-size:13px;color:#8c806b;line-height:1.7}
 
-/* Paper grid, then requirements, then the editable plan. */
+/* Room fills and paper grid, then requirements, then walls and furniture. */
 .paper{display:block;background-image:none}
 .drawing-area{position:relative;width:100%;height:100%;background:transparent}
 .paper-top{position:absolute;top:0;right:0;left:0;z-index:4;pointer-events:none}
