@@ -45,7 +45,7 @@ function archiveCurrentConversation(){conversations=archiveConversation(conversa
 function pastCommissions(){return completedCommissions(history,conversations,{campaignId,currentLevelId:level.id});}
 function loadGameLevel(next,{archive=true}={}){
   if(archive)archiveCurrentConversation();mobilePaletteOpen=false;
-  level=next;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
+  level=next;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
 }
 function advanceOpening(next){
   const before=tutorialStage;
@@ -194,7 +194,7 @@ function submissionMessages(items,{historical=false}={}){return items.map(s=>`<d
 function previousThreadsHTML(records){return records.map(item=>`<section class="commission-thread"><div class="chat-divider">${esc(item.title)} · 已完成</div><div class="attachment"><small>设计需求</small><strong>${esc(item.title)}</strong><p>${item.level.rooms.length}个房间 · ${item.level.rules.filter(r=>!r.hidden).length}项要求</p><button data-history-id="${esc(item.id)}" aria-label="查看${esc(item.title)}历史图纸">查看图纸</button></div>${submissionMessages(item.submissions,{historical:true})}</section>`).join('');}
 function phoneHTML(){
   if(!phone)return '';
-  const passed=evaluateLayout(level,layout).complete&&(review?.passed||submissions.at(-1)?.passed),previous=pastCommissions();
+  const passed=evaluateLayout(level,layout).complete&&submissions.at(-1)?.passed,previous=pastCommissions();
   const introduced=(level.progression?.newFurniture||[]).filter(kind=>OBJECTS[kind]).map(kind=>OBJECTS[kind].name);
   return `<div class="phone-shade" data-action="close-phone"></div><aside class="phone" aria-label="任务手机"><div class="phone-speaker"></div><div class="phone-status"><span>纸上事务所</span><span>●●● ▰</span></div><div class="phone-title"><div class="avatar">林</div><div><strong>林工</strong><small>设计部 · 项目委托</small></div>${previous.length?`<button class="chat-history-link" data-action="past-commissions">往期 ${previous.length}</button>`:''}<button class="icon-button" data-action="close-phone" aria-label="收起手机">${icon('close')}</button></div><div class="chat">${previousThreadsHTML(previous)}<div class="chat-divider current-commission">${esc(level.title)} · 当前委托</div><div class="message incoming">新委托已经发给你。先看需求，图纸画好后交给我审核。${level.planning?.label?`本次户型：${esc(level.planning.label)}。`:''}${Object.keys(level.fixedAreas||{}).length||level.fixedWalls?.length?'图上标出的固定结构不能占用或拆除。':''}${introduced.length?`这份委托新增${esc(introduced.join("、"))}，已加入铅笔物件列表。`:""}</div><div class="attachment"><small>设计需求 · ${esc(level.seed)}</small><strong>${esc(level.title)}</strong><p>${level.rooms.length}个房间 · ${level.rules.filter(r=>!r.hidden).length}项要求</p><button data-action="close-phone">查看图纸</button></div>${submissionMessages(submissions)}${passed?`<button class="primary next-task" data-action="next-task" ${preparingCommission?'disabled':''}>${preparingCommission?'正在准备委托…':'领取下一份委托'}</button>`:''}</div><div class="phone-compose"><button class="submit-design primary" data-action="submit">提交设计稿</button><button class="hint-button" data-action="hint" ${hints<=0||attempt.completed?'disabled':''}>求助 ${hints}/3</button><p>提交后由林工审核设计稿</p></div></aside>`;
 }
@@ -279,7 +279,7 @@ document.addEventListener('click',async event=>{
     case'close-modal':modal=null;render();break;
     case'close-history':modal=null;viewingCommission=null;chatScroll=$('.chat')?.scrollTop??chatScroll;render();break;
     case'next-task':{
-      if(preparingCommission)return;
+      if(preparingCommission||!submissions.at(-1)?.passed||!evaluateLayout(level,layout).complete)return;
       preparingCommission=true;const request=++generationRequest,previousId=level.id,previousCampaign=campaignId;render();
       try{
         const avoidFingerprints=[level.generationFingerprint,...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level?.generationFingerprint)].filter(Boolean);
