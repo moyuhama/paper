@@ -6,7 +6,7 @@ import {validateLevel,evaluateLayout,clone} from './engine.js';
 import {unlockedFurnitureAt,furnitureIntroducedAt} from './progression.js';
 import {CONTENT_VERSION} from './catalog.js';
 function verified(level,chapter=level.chapter){const allowed=new Set(unlockedFurnitureAt(chapter)),required=furnitureIntroducedAt(chapter);return !validateLevel(level).length&&supportsMechanics(level,chapter)&&level.reference?.objects?.every(o=>allowed.has(o.kind))&&required.every(kind=>level.reference.objects.some(o=>o.kind===kind))&&evaluateLayout(level,level.reference).complete;}
-export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher=globalThis.fetch,timeoutMs=1500}={}){
+export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher=globalThis.fetch,timeoutMs=1500,onMeasure=()=>{},now=()=>performance.now()}={}){
   let fallbackPromise;
   const indexURL=new URL('./data/fallback-index.json',import.meta.url);
   async function json(url){
@@ -33,19 +33,24 @@ export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher
   }
   return async(chapter,{avoidFingerprints=[],recentStructures=[]}={})=>{
     unlockedFurnitureAt(chapter);
-    if(!WorkerClass)return fallback(chapter,avoidFingerprints,recentStructures);
-    try{
-      return await new Promise((resolve,reject)=>{
-        let worker,timer;
-        const finish=(error,level)=>{clearTimeout(timer);worker?.terminate();error?reject(error):resolve(level);};
+    const started=now();let workerMs=0,reason=WorkerClass?null:'unsupported';
+    const measure=(source,fallbackMs=0)=>{try{onMeasure({chapter,source,reason,totalMs:Math.max(0,now()-started),workerMs,fallbackMs});}catch{/* Observability cannot break commissions. */}};
+    if(WorkerClass)try{
+      const result=await new Promise((resolve,reject)=>{
+        let worker,timer,settled=false;
+        const finish=(error,level)=>{if(settled)return;settled=true;clearTimeout(timer);worker?.terminate();error?reject(error):resolve(level);};
         try{
           worker=new WorkerClass(new URL('./generation-worker.js',import.meta.url),{type:'module'});
-          timer=setTimeout(()=>finish(new Error('生成超时')),timeoutMs);
-          worker.onmessage=event=>{const level=event.data?.level;if(!level||level.chapter!==chapter||!verified(level,chapter)||avoidFingerprints.includes(level.generationFingerprint))finish(new Error('生成结果未通过验证'));else finish(null,level);};
-          worker.onerror=()=>finish(new Error('生成暂时不可用'));
+          timer=setTimeout(()=>finish(new Error('timeout')),timeoutMs);
+          worker.onmessage=event=>{const level=event.data?.level;if(!level||level.chapter!==chapter||!verified(level,chapter)||avoidFingerprints.includes(level.generationFingerprint))finish(new Error('invalid-result'));else finish(null,level);};
+          worker.onerror=()=>finish(new Error('worker-error'));
           worker.postMessage({chapter,avoidFingerprints,recentStructures});
-        }catch(error){finish(error);}
+        }catch{finish(new Error('worker-unavailable'));}
       });
-    }catch{return fallback(chapter,avoidFingerprints,recentStructures);}
+      workerMs=Math.max(0,now()-started);measure('worker-generated');return result;
+    }catch(error){workerMs=Math.max(0,now()-started);reason=error.message;}
+    const fallbackStarted=now();
+    try{const result=await fallback(chapter,avoidFingerprints,recentStructures);measure('verified-fallback',Math.max(0,now()-fallbackStarted));return result;}
+    catch(error){measure('failed',Math.max(0,now()-fallbackStarted));throw error;}
   };
 }

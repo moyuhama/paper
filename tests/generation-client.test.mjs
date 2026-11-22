@@ -90,3 +90,15 @@ test('第50至66份引入关回退保留全部新品种，缺钢琴的有效Work
   const wrong=createCampaignLevel(49);wrong.chapter=62;class MissingPiano{postMessage(){queueMicrotask(()=>this.onmessage({data:{level:wrong}}));}terminate(){}}
   const rescued=await createCommissionGenerator({WorkerClass:MissingPiano,fetcher})(62);assert.equal(rescued.generation.source,'verified-fallback');assert.ok(rescued.reference.objects.some(o=>o.kind==='piano'));
 });
+
+test('出题测量区分Worker与回退的等待，测量失败不影响已验关卡',async()=>{
+  const samples=[];let clock=0;const level=createCampaignLevel(12);
+  class Worker{postMessage(){clock+=30;queueMicrotask(()=>this.onmessage({data:{level}}));}terminate(){}}
+  const worker=createCommissionGenerator({WorkerClass:Worker,now:()=>clock,onMeasure:s=>samples.push(s)});
+  await worker(12);assert.equal(samples[0].source,'worker-generated');assert.equal(samples[0].workerMs,30);assert.equal(samples[0].totalMs,30);
+  const fallback=createCommissionGenerator({WorkerClass:null,now:()=>clock,onMeasure:s=>samples.push(s),fetcher:async url=>{clock+=10;return fetcher(url);}});
+  await fallback(12);assert.equal(samples[1].source,'verified-fallback');assert.equal(samples[1].reason,'unsupported');assert.equal(samples[1].fallbackMs,20);
+  const throwing=createCommissionGenerator({WorkerClass:null,fetcher,onMeasure:()=>{throw Error('quota');}});assert.equal((await throwing(12)).chapter,12);
+  const failed=createCommissionGenerator({WorkerClass:null,fetcher:async()=>({ok:false}),onMeasure:s=>samples.push(s)});
+  await assert.rejects(failed(12));assert.equal(samples.at(-1).source,'failed');
+});

@@ -9,6 +9,8 @@ import {createId} from './ids.js';
 import {archiveConversation,completedCommissions} from './commission-history.js';
 import {renderPlan} from './plan-view.js';
 import {beginTouchCamera,updateTouchCamera} from './touch-camera.js';
+import {createBoardGestures} from './board-gestures.js';
+import {PLAYTEST_STORE,createPlaytestRecorder} from './playtest-metrics.js';
 import {furnitureSVG,footprintSVG,objectIcon,structureSVG,cellSVG,edgePath,diagonalBoundarySVG} from './drawing-assets.js';
 import {GRID_PIXELS,clampZoom,cameraBox,draggedPan,zoomedPan} from './camera.js';
 import {createGameAudio} from './audio.js';
@@ -27,7 +29,9 @@ let selectedId=null,hoverPoint=null,lastDrawTool='room',inspectedRule=null;
 let paletteFocus=null,requirementsReset=false,manualGuide=false,showRequirements=true,requirementsScroll=0,portraitHintDismissed=false,viewNeedsFit=true;
 const savedVolume=(key,fallback)=>typeof saved.settings?.[key]==='number'&&Number.isFinite(saved.settings[key])?Math.max(0,Math.min(1,saved.settings[key])):fallback;
 let screen='menu',settings={showTips:saved.settings?.showTips!==false,showGrid:saved.settings?.showGrid!==false,musicVolume:savedVolume('musicVolume',.5),effectsVolume:savedVolume('effectsVolume',.7)};
-const gameAudio=createGameAudio(settings),generateCommission=createCommissionGenerator();
+const playtest=createPlaytestRecorder({read:()=>JSON.parse(localStorage.getItem(PLAYTEST_STORE)||'null'),write:data=>localStorage.setItem(PLAYTEST_STORE,JSON.stringify(data))});
+const gestures=createBoardGestures();let pinch=null,playtestReady=false;
+const gameAudio=createGameAudio(settings),generateCommission=createCommissionGenerator({onMeasure:sample=>playtest.generation(sample)});
 let preparingCommission=false,generationRequest=0;
 let guideDone=saved.guideDone===true,guideStep=guideDone?null:0;
 let seenLessons=Array.isArray(saved.seenLessons)?saved.seenLessons:[],contentLessons=[],lessonIndex=0;
@@ -48,12 +52,12 @@ function commit(next,action){
   else if(guideStep===1&&action==='room')guideStep=2;
   else if(guideStep===2&&['door','window','open'].includes(action))guideStep=3;
   else if(guideStep===3&&action==='object')guideStep=4;
-if(JSON.stringify(layout)===JSON.stringify(next)){render();return;}undoStack.push(clone(layout));if(undoStack.length>80)undoStack.shift();redoStack=[];layout=next;review=null;gameAudio.play(action==='eraser'?'erase':action==='room'?'pencil':'place');persist();render();}
+if(JSON.stringify(layout)===JSON.stringify(next)){render();return;}playtest.record('edit');undoStack.push(clone(layout));if(undoStack.length>80)undoStack.shift();redoStack=[];layout=next;review=null;gameAudio.play(action==='eraser'?'erase':action==='room'?'pencil':'place');persist();render();}
 function archiveCurrentConversation(){conversations=archiveConversation(conversations,{campaignId,level,submissions});}
 function pastCommissions(){return completedCommissions(history,conversations,{campaignId,currentLevelId:level.id});}
 function loadGameLevel(next,{archive=true}={}){
   if(archive)archiveCurrentConversation();mobilePaletteOpen=false;
-  level=next;pendingTag=null;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
+  level=next;pendingTag=null;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;playtest.begin({campaignId,level,fromStart:true});playtestReady=true;persist();render();
 }
 function advanceOpening(next){
   const before=tutorialStage;
@@ -218,7 +222,7 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.8.0</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.9.0</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -232,6 +236,7 @@ function modalHTML(){
 }
 function portraitHintHTML(tutorialVisible=false){return portraitHintDismissed||tutorialVisible?'':`<aside class="portrait-hint" aria-label="横屏建议"><span>${icon('phone')}<strong>横屏更好画</strong></span><button data-action="dismiss-portrait-hint">继续竖屏</button></aside>`;}
 function render(){
+  interruptBoard('redraw');if(screen==='game'&&!playtestReady){playtest.begin({campaignId,level,completed:attempt.completed});playtestReady=true;}playtest.context(screen==='game'&&!modal&&!document.hidden);
   if(screen==='menu'){$('#app').innerHTML=menuHTML()+modalHTML();return;}
   if(selectedId&&!selectedFurniture())selectedId=null;
   const check=evaluateLayout(level,layout);
@@ -249,12 +254,13 @@ function render(){
   if(tool==='object'&&hoverPoint)showPlacementPreview(hoverPoint);
   if(phone){const chat=$('.chat');chat.scrollTop=chatScroll??chat.scrollHeight;chatScroll=null;}
 }
-function undo(){if(!undoStack.length)return;redoStack.push(clone(layout));layout=undoStack.pop();review=null;persist();render();}
-function redo(){if(!redoStack.length)return;undoStack.push(clone(layout));layout=redoStack.pop();review=null;persist();render();}
+function undo(){if(!undoStack.length)return;playtest.record('undo');redoStack.push(clone(layout));layout=undoStack.pop();review=null;persist();render();}
+function redo(){if(!redoStack.length)return;playtest.record('redo');undoStack.push(clone(layout));layout=redoStack.pop();review=null;persist();render();}
 function submit(){
   const check=evaluateLayout(level,layout),unmet=check.results.filter(r=>!r.ok),reason=check.errors[0]||(!Object.keys(layout.cells).length?'图纸还是空的，先规划房间吧。':`还有${unmet.length}项未满足：${unmet.slice(0,2).map(r=>r.text).join('；')}。`);
   let rating=null;
   if(check.complete){const approved=approveAttempt(attempt);attempt=approved.attempt;rating=approved.rating;}else attempt=recordFailure(attempt);
+  playtest.record(check.complete?'complete':'failure');
   const item={version:submissions.length+1,passed:check.complete,reason,rating,scoringVersion:RATING_VERSION,complete:check.results.filter(r=>r.ok&&!level.rules.find(rule=>rule.id===r.id)?.hidden).length,total:level.rules.filter(r=>!r.hidden).length};submissions.push(item);review=item;if(check.complete&&level.chapter===1){guideDone=true;guideStep=null;}
   if(check.complete&&!history.some(h=>(h.campaignId||'legacy')===campaignId&&h.id===level.id&&h.version===submissions.length)){history.push({id:level.id,campaignId,version:submissions.length,title:level.title,seed:level.seed,rooms:level.rooms.length,level:clone(level),layout:clone(layout),rating:rating?clone(rating):null,at:new Date().toISOString()});}
   gameAudio.play(check.complete?'success':'error');persist();render();
@@ -321,16 +327,18 @@ document.addEventListener('click',async event=>{
     case'submit':submit();break;
     case'hint':{
       if(hints<=0||attempt.completed)return;
+      const helpedRoomName=level.rooms.find(r=>r.id===selectedRoom)?.name;
       const result=hintRoom(level,layout,selectedRoom);if(result.error){toast(result.error);break;}
       if(JSON.stringify(result.layout)===JSON.stringify(layout)){toast('这个房间已经与参考布局一致，请先在工具带选择另一个房间');break;}
-      const helped=recordHint(attempt);if(helped.error){toast(helped.error);break;}attempt=helped.attempt;hints=3-attempt.hintsUsed;commit(result.layout);toast(`林工补画了${level.rooms.find(r=>r.id===selectedRoom).name}，剩余${hints}次求助`);break;
+      const helped=recordHint(attempt);if(helped.error){toast(helped.error);break;}attempt=helped.attempt;hints=3-attempt.hintsUsed;playtest.record('hint');commit(result.layout);toast(`林工补画了${helpedRoomName}，剩余${hints}次求助`);break;
     }
     case'zoom-in':setZoom(zoom+.15);break;case'zoom-out':setZoom(zoom-.15);break;case'zoom-reset':pan={x:0,y:0};zoom=1;viewNeedsFit=true;syncView();break;
   }
 });
 let cameraFrame=0;
-const cameraResize=new ResizeObserver(()=>syncView());
-window.matchMedia('(orientation: portrait)').addEventListener('change',()=>{if(window.innerWidth<=1100){drag=null;viewNeedsFit=true;syncView();}});
+let previousBoardSize=null;
+const cameraResize=new ResizeObserver(entries=>{const r=entries[0]?.contentRect;if(r&&previousBoardSize&&(r.width!==previousBoardSize.width||r.height!==previousBoardSize.height))interruptBoard('resize');if(r)previousBoardSize={width:r.width,height:r.height};syncView();});
+window.matchMedia('(orientation: portrait)').addEventListener('change',()=>{if(window.innerWidth<=1100){interruptBoard('orientation');viewNeedsFit=true;syncView();}});
 function syncView(){
   cameraFrame=0;syncRequirementsScroll();const svg=$('#blueprint');if(!svg)return;
   const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;
@@ -399,7 +407,7 @@ function previewAt(p){
   }else if(drag.object){const object={...drag.object,x:Math.floor(p.x)-drag.offset.x,y:Math.floor(p.y)-drag.offset.y},valid=!!placeObject(level,layout,object).layout;node.innerHTML=`${footprintSVG(object,{fill:valid?'#74a471':'#d78276',stroke:valid?'#497b45':'#b05f54',opacity:.2})}<g opacity=".75">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}${instanceBadgeSVG(object)}</g>${usagePreviewSVG(level,layout,object)}`;}
 }
 function finish(event){
-  if(!drag)return;if(drag.mode==='pan'){movePan(event);drag=null;$('#blueprint')?.classList.remove('panning');syncView();return;}if(drag.object&&event.button===2)return;const current=drag;drag=null;const p=svgPoint(event);let result;
+  if(!drag||drag.pointerId!==event.pointerId)return;if(drag.mode==='pan'){movePan(event);drag=null;$('#blueprint')?.classList.remove('panning');syncView();return;}if(drag.object&&event.button===2)return;const current=drag;drag=null;const p=svgPoint(event);let result;
   if(current.mode==='object'){hoverPoint=null;result=placeFurnitureAt(p);}
   else if(current.mode==='room')result=paintRoom(level,layout,selectedRoom,rectangle(current.start,p));
   else if(current.mode==='eraser')result={layout:eraseRect(level,layout,rectangle(current.start,p),eraseFilter)};
@@ -441,16 +449,17 @@ function bindRequirementsScroll(){
   });
 }
 function bindBoard(){
-  const svg=$('#blueprint'),surface=svg.closest('.canvas-wrap'),touches=new Map();let pinch=null,waitForLift=false;
+  const svg=$('#blueprint'),surface=svg.closest('.canvas-wrap');
   const isInterface=target=>!!target.closest('.requirements,.requirements-scrollbar,button,.tutorial-anchor,.range-explanation,.portrait-hint');
-  const touchPoints=()=>[...touches.values()].slice(0,2);
   surface.addEventListener('contextmenu',event=>{if(!isInterface(event.target))event.preventDefault();});
   surface.addEventListener('pointerdown',event=>{
     if(isInterface(event.target)||phone||modal||event.button!==0&&event.button!==1&&event.button!==2)return;
     if(event.pointerType==='touch'){
-      touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
-      if(touches.size===2){const r=svg.getBoundingClientRect();pinch=beginTouchCamera(touchPoints(),pan,zoom,{x:r.x+r.width/2,y:r.y+r.height/2});waitForLift=true;drag=null;hoverPoint=null;$('#drawing-preview').innerHTML='';svg.classList.add('panning');svg.setPointerCapture(event.pointerId);event.preventDefault();return;}
-      if(waitForLift||touches.size>2){event.preventDefault();return;}
+      if(gestures.phase==='camera'){
+        if(!pinch){const r=svg.getBoundingClientRect();pinch=beginTouchCamera(gestures.points,pan,zoom,{x:r.x+r.width/2,y:r.y+r.height/2});drag=null;hoverPoint=null;$('#drawing-preview').innerHTML='';}
+        svg.classList.add('panning');svg.setPointerCapture(event.pointerId);event.preventDefault();return;
+      }
+      if(!gestures.canDraw(event.pointerId)){event.preventDefault();return;}
     }
     if(event.button===1){startPan(event,svg);return;}
     const p=svgPoint(event),objectId=event.target.closest('[data-object-id]')?.dataset.objectId;
@@ -459,7 +468,7 @@ function bindBoard(){
     if(event.button===2&&tool==='hand'&&objectId){event.preventDefault();selectedId=objectId;rotateCurrent();return;}
     if(tool==='object'&&event.button===2){event.preventDefault();hoverPoint=p;rotateCurrent();return;}
     if(tool==='object'&&event.button===0){
-      if(event.pointerType==='touch'){drag={mode:'object',start:p,last:p};hoverPoint=p;svg.setPointerCapture(event.pointerId);event.preventDefault();showPlacementPreview(p);return;}
+      if(event.pointerType==='touch'){drag={mode:'object',pointerId:event.pointerId,start:p,last:p};hoverPoint=p;svg.setPointerCapture(event.pointerId);event.preventDefault();showPlacementPreview(p);return;}
       const result=placeFurnitureAt(p);
       if(result.error){gameAudio.play('error');toast(result.error);}else{hoverPoint=null;commit(result.layout,'object');}return;
     }
@@ -469,25 +478,26 @@ function bindBoard(){
       selectedId=object?.id||null;
       if(object)selectedRoom=objectRoom(layout,object)||selectedRoom;
     }
-    drag={mode,start:p,last:p,edges:new Set(),object,offset:object?{x:Math.floor(p.x)-object.x,y:Math.floor(p.y)-object.y}:null};
+    drag={mode,pointerId:event.pointerId,start:p,last:p,edges:new Set(),object,offset:object?{x:Math.floor(p.x)-object.x,y:Math.floor(p.y)-object.y}:null};
     if(['door','window','open'].includes(mode))drag.edges.add(closestEdge(p));
     svg.setPointerCapture(event.pointerId);event.preventDefault();previewAt(p);
   });
-  surface.addEventListener('pointermove',event=>{if(!drag&&isInterface(event.target)){hoverPoint=null;$('#drawing-preview').innerHTML='';return;}if(event.pointerType==='touch'){
-    if(touches.has(event.pointerId))touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
-    if(pinch&&touches.size>=2){const next=updateTouchCamera(pinch,touchPoints());pan=next.pan;zoom=next.zoom;queueView();return;}
-    if(waitForLift)return;
-  }if(drag?.mode==='pan'){movePan(event);return;}const p=svgPoint(event);if(drag)previewAt(p);else if(tool==='object'){hoverPoint=p;showPlacementPreview(p);}});
+  surface.addEventListener('pointermove',event=>{
+    if(event.pointerType==='touch'){
+      if(pinch&&gestures.phase==='camera'){const next=updateTouchCamera(pinch,gestures.points);pan=next.pan;zoom=next.zoom;queueView();return;}
+      if(!gestures.canDraw(event.pointerId))return;
+    }
+    if(drag&&drag.pointerId!==event.pointerId)return;
+    if(!drag&&isInterface(event.target)){hoverPoint=null;$('#drawing-preview').innerHTML='';return;}
+    if(drag?.mode==='pan'){movePan(event);return;}
+    const p=svgPoint(event);if(drag)previewAt(p);else if(tool==='object'){hoverPoint=p;showPlacementPreview(p);}
+  });
   surface.addEventListener('pointerleave',()=>{if(!drag){hoverPoint=null;$('#drawing-preview').innerHTML='';}});
   surface.addEventListener('pointerup',event=>{
-    if(event.pointerType==='touch'){
-      touches.delete(event.pointerId);
-      if(waitForLift){pinch=null;drag=null;svg.classList.remove('panning');if(!touches.size)waitForLift=false;return;}
-    }
+    if(event.pointerType==='touch'&&!gestures.canDraw(event.pointerId)){pinch=null;drag=null;hoverPoint=null;$('#drawing-preview').innerHTML='';svg.classList.remove('panning');return;}
     finish(event);
   });
-  surface.addEventListener('pointercancel',event=>{if(!touches.has(event.pointerId)&&!drag&&!pinch)return;touches.clear();pinch=null;waitForLift=false;drag=null;svg.classList.remove('panning');render();});
-  surface.addEventListener('lostpointercapture',()=>{if(drag?.mode==='pan'){drag=null;svg.classList.remove('panning');}});
+  surface.addEventListener('lostpointercapture',event=>{if(gestures.has(event.pointerId)||drag?.pointerId===event.pointerId)interruptBoard('capture');});
   surface.addEventListener('auxclick',event=>{if(event.button===1)event.preventDefault();});
   surface.addEventListener('wheel',event=>{
     if(phone||modal||drag)return;
@@ -504,6 +514,27 @@ function bindBoard(){
     event.preventDefault();setZoom(zoom*Math.exp(-event.deltaY*.0015),{x:event.clientX,y:event.clientY});
   },{passive:false});
 }
+function interruptBoard(reason){
+  if(drag||pinch){playtest.record('interruption');hoverPoint=null;}
+  gestures.interrupt();pinch=null;drag=null;
+  const svg=$('#blueprint');svg?.classList.remove('panning');
+  const preview=$('#drawing-preview');if(preview)preview.innerHTML='';
+}
+for(const type of ['pointerdown','keydown','wheel'])document.addEventListener(type,()=>playtest.interact(),{capture:true,passive:true});
+document.addEventListener('pointerdown',event=>{
+  if(event.pointerType!=='touch')return;
+  const eligible=screen==='game'&&!phone&&!modal&&!!event.target.closest('.canvas-wrap')&&!event.target.closest('.requirements,.requirements-scrollbar,button,.tutorial-anchor,.range-explanation,.portrait-hint');
+  const phase=gestures.down(event.pointerId,{x:event.clientX,y:event.clientY},eligible);
+  if(phase==='blocked')interruptBoard('interface');
+},{capture:true});
+document.addEventListener('pointermove',event=>{if(event.buttons||event.pointerType==='touch')playtest.interact();if(event.pointerType==='touch')gestures.move(event.pointerId,{x:event.clientX,y:event.clientY});},{capture:true,passive:true});
+document.addEventListener('pointerup',event=>{if(event.pointerType==='touch')gestures.up(event.pointerId);});
+document.addEventListener('pointercancel',event=>{if(gestures.has(event.pointerId)||drag?.pointerId===event.pointerId){interruptBoard('cancel');gestures.cancel(event.pointerId);}},{capture:true});
+window.addEventListener('blur',()=>{interruptBoard('blur');playtest.context(false);});
+window.addEventListener('focus',()=>playtest.context(screen==='game'&&!modal&&!document.hidden));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)interruptBoard('hidden');playtest.context(screen==='game'&&!modal&&!document.hidden);});
+window.addEventListener('pagehide',()=>{interruptBoard('pagehide');playtest.context(false);});
+setInterval(()=>playtest.flush(),15000);
 function changeVolume(event){const key=event.target.dataset.volume;if(!['musicVolume','effectsVolume'].includes(key))return false;settings[key]=Number(event.target.value)/100;gameAudio.update(settings);const output=document.querySelector(`[data-volume-value="${key}"]`);if(output)output.textContent=event.target.value+'%';persist();return true;}
 document.addEventListener('input',changeVolume);
 document.addEventListener('change',event=>{if(changeVolume(event)){if(event.target.dataset.volume==='effectsVolume')gameAudio.play('click');}else if(event.target.dataset.setting){settings[event.target.dataset.setting]=event.target.checked;persist();}});
