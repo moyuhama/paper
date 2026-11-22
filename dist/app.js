@@ -1,3 +1,5 @@
+import {lessonsForLevel,completeLessons} from './tutorials.js';
+import {describeStructure} from './puzzle-diversity.js';
 import {roomArea,cellArea} from './geometry.js';
 import {createCommissionGenerator} from './generation-client.js';
 import {createId} from './ids.js';
@@ -24,16 +26,18 @@ let screen='menu',settings={showTips:saved.settings?.showTips!==false,showGrid:s
 const gameAudio=createGameAudio(settings),generateCommission=createCommissionGenerator();
 let preparingCommission=false,generationRequest=0;
 let guideDone=saved.guideDone===true,guideStep=guideDone?null:0;
+let seenLessons=Array.isArray(saved.seenLessons)?saved.seenLessons:[],contentLessons=[],lessonIndex=0;
 try{if(saved.level&&validateLevel(saved.level).length===0){level=saved.level;layout=saved.layout;hints=saved.hints??3;submissions=saved.submissions||[];}}
 catch{}
 if(!level||!layout){level=createOpeningLevel();layout=initialLayout(level);}
+contentLessons=lessonsForLevel(level,{seen:seenLessons});
 let attempt=restoreAttempt(saved.attempt,{hintsRemaining:hints,submissions});
 submissions=restoreSubmissionRatings(submissions,attempt);
 hints=3-attempt.hintsUsed;
 selectedRoom=level.chapter===1&&tutorialStage<3?level.rooms[tutorialStage].id:level.rooms[0].id;
 if(level.chapter===1&&tutorialStage===3){tool=lastDrawTool='door';paletteFocus='[data-object="bed"]';}
 if(level.chapter===1&&tutorialStage===4){tool=lastDrawTool='object';selectedObject='bed';}
-function persist(){try{localStorage.setItem(STORE,JSON.stringify({level,layout,hints,submissions,campaignId,conversations,history:history.slice(-50),taskIndex,tutorialStage,guideDone,settings,attempt}));}catch{toast('浏览器存储不可用，当前图纸仍可继续编辑');}}
+function persist(){try{localStorage.setItem(STORE,JSON.stringify({level,layout,hints,submissions,campaignId,conversations,history:history.slice(-50),taskIndex,tutorialStage,guideDone,seenLessons,settings,attempt}));}catch{toast('浏览器存储不可用，当前图纸仍可继续编辑');}}
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),3200);}
 function commit(next,action){
   if(level.chapter===1)advanceOpening(next);
@@ -45,7 +49,7 @@ function archiveCurrentConversation(){conversations=archiveConversation(conversa
 function pastCommissions(){return completedCommissions(history,conversations,{campaignId,currentLevelId:level.id});}
 function loadGameLevel(next,{archive=true}={}){
   if(archive)archiveCurrentConversation();mobilePaletteOpen=false;
-  level=next;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
+  level=next;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;persist();render();
 }
 function advanceOpening(next){
   const before=tutorialStage;
@@ -174,7 +178,12 @@ const GUIDE=[
   ['看反馈，提交设计','绿色划线表示需求已满足；点击方位条件可以查看图上的条带范围。完成后点左侧手机的“提交图纸”，由林工审核。','开始设计']
 ];
 function guideHTML(){
-  if(guideStep===null||!settings.showTips&&!manualGuide)return '';
+  if(!settings.showTips&&!manualGuide)return '';
+  if(contentLessons.length){
+    const lesson=contentLessons[lessonIndex];
+    return `<section class="drawing-coach content-coach" aria-label="委托教学"><button class="coach-close" data-action="lesson-skip" aria-label="收起委托教学">${icon('close')}</button><span class="coach-kicker">林工 · 本次提示 ${lessonIndex+1}/${contentLessons.length}</span><h2>${esc(lesson.title)}</h2><p>${esc(lesson.text)}</p>${lesson.kind?`<div class="rotate-demo">${objectIcon(lesson.kind,0)}<span>${OBJECTS[lesson.kind].w} × ${OBJECTS[lesson.kind].h} m</span></div>`:''}<div class="coach-actions">${lessonIndex?'<button data-action="lesson-back">上一步</button>':''}<button class="primary" data-action="lesson-next">${lessonIndex+1===contentLessons.length?'开始设计':'下一条'}</button></div></section>`;
+  }
+  if(guideStep===null)return '';
   if(level.chapter===1){
     const steps=[['画卫生间 · 9㎡','选下方的卫生间，拖出9㎡矩形。北侧两扇固定窗须在房间内。'],['画走廊 · 3㎡','选走廊，画出3㎡区域，连接卫生间和卧室。'],['画卧室 · 16㎡','选卧室，拖出16㎡区域。紧贴已有部分追加，可调整房间形状。'],['门窗和床已加入','床与门窗已加入物件带。先摆床或先放门窗都可以，满足全部需求后再交图。'],['摆放双人床','移动鼠标预览，右键或R转向，左键放下。'],['可以交图了','要求已经全部满足。打开手机，把设计稿提交给林工审核。']];
     const mobileTexts=['单指拖出9㎡矩形，包含北侧两扇固定窗。点下方物件名称可切换。','用单指拖出3㎡走廊，连接卫生间和卧室。','单指拖出16㎡卧室；紧贴已有区域追加，可画不规则形状。','点下方物件名称展开列表，门窗、开放连接和床都在其中。','选择双人床，点“转向”调整方向，再点图纸放下；可用抓手移动。','点右上任务手机，提交图纸让林工审核。'];
@@ -200,7 +209,7 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.4.0</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.5.0</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -257,11 +266,14 @@ document.addEventListener('click',async event=>{
     case'main-menu':modal='return-menu';drag=null;hoverPoint=null;render();$('.return-dialog [autofocus]')?.focus();break;
     case'confirm-main-menu':generationRequest++;preparingCommission=false;screen='menu';phone=false;modal=null;hoverPoint=null;drag=null;persist();render();break;
     case'menu-settings':modal='settings';render();break;
-    case'new-game':generationRequest++;preparingCommission=false;localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;loadGameLevel(createOpeningLevel(),{archive:false});break;
+    case'new-game':generationRequest++;preparingCommission=false;localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;seenLessons=[];loadGameLevel(createOpeningLevel(),{archive:false});break;
     case'close-settings':modal=null;render();break;
     case'undo':undo();break;case'redo':redo();break;
     case'rotate':rotateCurrent();break;
-    case'tutorial':guideStep=0;manualGuide=true;phone=false;modal=null;render();break;
+    case'tutorial':contentLessons=lessonsForLevel(level,{includeSeen:true});lessonIndex=0;guideStep=0;manualGuide=true;phone=false;modal=null;render();break;
+    case'lesson-back':lessonIndex=Math.max(0,lessonIndex-1);render();break;
+    case'lesson-next':seenLessons=completeLessons(seenLessons,[contentLessons[lessonIndex]]);if(++lessonIndex>=contentLessons.length){contentLessons=[];lessonIndex=0;manualGuide=false;guideStep=null;}persist();render();break;
+    case'lesson-skip':seenLessons=completeLessons(seenLessons,contentLessons);contentLessons=[];lessonIndex=0;manualGuide=false;guideStep=null;persist();render();break;
     case'opening-guide-ok':guideStep=null;manualGuide=false;render();break;
     case'guide-next':if(guideStep===GUIDE.length-1){guideStep=null;guideDone=true;persist();}else guideStep++;render();break;
     case'guide-back':guideStep=Math.max(0,guideStep-1);render();break;
@@ -283,7 +295,8 @@ document.addEventListener('click',async event=>{
       preparingCommission=true;const request=++generationRequest,previousId=level.id,previousCampaign=campaignId;render();
       try{
         const avoidFingerprints=[level.generationFingerprint,...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level?.generationFingerprint)].filter(Boolean);
-        const next=await generateCommission((level.chapter||1)+1,{avoidFingerprints});
+        const recentStructures=[...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level),level].filter(item=>item?.reference).slice(-8).map(describeStructure);
+        const next=await generateCommission((level.chapter||1)+1,{avoidFingerprints,recentStructures});
         if(request===generationRequest&&screen==='game'&&level.id===previousId&&campaignId===previousCampaign)loadGameLevel(next);
       }catch{if(request===generationRequest)toast('新委托暂未准备好，当前图纸已保存，请重试。');}
       finally{if(request===generationRequest){preparingCommission=false;render();}}

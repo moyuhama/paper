@@ -1,3 +1,5 @@
+import {describeStructure,repetitionScore} from './puzzle-diversity.js';
+import {SHAPE_UNLOCKS,SHAPE_INTRODUCTIONS} from './shape-catalog.js';
 import {roomArea} from './geometry.js';
 import {selectClues,levelFingerprint} from './generation-policy.js';
 import {CONTENT_VERSION,ROOM_CATALOG,roomFurniture} from './catalog.js';
@@ -6,7 +8,7 @@ import {createResidentialPlan} from './residential.js';
 import {unlockedFurnitureAt,furnitureIntroducedAt} from './progression.js';
 import {generationQualityErrors} from './generation-quality.js';
 import {walkabilityErrors,crossesFixedWall,footprint,neighbors,edgeCells,boundaryKind,ENGINE_VERSION,OBJECTS,cellKey,point,allEdges,edgeInfo,edgeParts,sharedEdges,roomEdges,objectRoom,directionCounts,evaluateLayout,validateLevel,clone} from './engine.js';
-export const GENERATOR_VERSION='0.4.0';
+export const GENERATOR_VERSION='0.5.0';
 // Catalogue changes do not need to reshuffle the established spatial seed stream.
 const SEED_STREAM_VERSION='0.2.0';
 const ROLES=ROOM_CATALOG;
@@ -112,13 +114,13 @@ function makeLevel(seed,mode,{chapter,family,deadline=Date.now()+1200}={}) {
     }
     const unique=items=>[...new Map(items.map(r=>[JSON.stringify([r.source,r.target,r.direction]),r])).values()];
     const prioritized=items=>unique([...newFurniture.flatMap(kind=>items.filter(r=>r.source.kind===kind).slice(0,1)),...items]);
-    const positive=prioritized(shuffled(unique(candidates.filter(r=>!r.forbidden)),rand)).slice(0,complex?16:7);
-    const negative=prioritized(shuffled(unique(candidates.filter(r=>r.forbidden)),rand)).slice(0,complex?8:3);
+    const positive=prioritized(shuffled(unique(candidates.filter(r=>!r.forbidden)),rand)).slice(0,expanded?48:complex?16:7);
+    const negative=prioritized(shuffled(unique(candidates.filter(r=>r.forbidden)),rand)).slice(0,expanded?32:complex?8:3);
     for(const rule of [...positive,...negative])add(rule);
   }
   level.reference=layout;
-  if(expanded)selectClues(level,chapter||30);
   if(chapter!==undefined)level.progression={newFurniture};
+  if(expanded)selectClues(level,chapter||30,{deadline});
   const quality=generationQualityErrors(level);if(quality.length)throw new Error('生成质量未通过：'+quality.join('；'));
   if(expanded)level.planning.label=SHAPE_NAMES[plan.shapeFamily];
   level.brief=basic?'先规划房间，再安放门窗和家具。蓝色斜纹窗已固定；公共边可用开放连接打通。':'房间之间的需求彼此关联。先读完条件，再决定分区；同一份委托可以有多个合法布局。';
@@ -188,15 +190,27 @@ function campaignCandidate(chapter,variant=0,options={}){
 
 export function createCampaignLevel(chapter,options={}){
   const avoid=new Set(options.avoidFingerprints||[]),deadline=Date.now()+(options.budgetMs??1200);
-  let reason;
+  const recent=options.recentStructures||[];let reason,best,bestScore=Infinity;
   for(let variant=0;variant<6;variant++){
     if(Date.now()>deadline)break;
     try{
-      const level=campaignCandidate(chapter,variant,{...options,deadline});
+      let family=options.family;
+      if(chapter>=12&&!family&&!SHAPE_INTRODUCTIONS[chapter]&&recent.length){
+        const available=Object.keys(SHAPE_UNLOCKS).filter(id=>SHAPE_UNLOCKS[id]<=chapter);
+        const fresh=available.filter(id=>!recent.slice(-2).some(item=>item.family===id));
+        const pool=fresh.length?fresh:available;
+        family=pool[Math.floor(randomFromSeed('variety:'+chapter+':'+variant)()*pool.length)];
+      }
+      const level=campaignCandidate(chapter,variant,{...options,family,deadline});
       level.generationFingerprint=levelFingerprint(level);
       if(avoid.has(level.generationFingerprint)){reason='近期已有相似委托';continue;}
-      return level;
+      const structure=describeStructure(level),score=repetitionScore(structure,recent);
+      level.generationStructure=structure;
+      level.generation={source:'worker-generated',similarity:score};
+      if(score<bestScore){best=level;bestScore=score;}
+      if(score<.93||SHAPE_INTRODUCTIONS[chapter])return level;
     }catch(error){reason=error.message;}
   }
+  if(best){best.generation.similarityLimited=true;return best;}
   throw new Error(reason||'生成超过预算');
 }

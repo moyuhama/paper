@@ -1,3 +1,4 @@
+import {describeStructure} from '../dist/puzzle-diversity.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -47,4 +48,14 @@ test('回退只请求小索引和单个快照，不下载完整题库',async()=>
   const requested=[];const generate=createCommissionGenerator({WorkerClass:null,fetcher:async url=>{requested.push(url.pathname);return fetcher(url);}});
   await generate(12);assert.equal(requested.length,2);assert.match(requested[0],/fallback-index\.json$/);assert.match(requested[1],/levels\/12\.json$/);
   const largest=Math.max(...[...levels.values()].map(l=>Buffer.byteLength(JSON.stringify(l))));assert.ok(largest<25000);assert.ok(Buffer.byteLength(JSON.stringify(index))<20000);
+});
+
+test('无Worker的后期回退也优先选不同结构，近期信息传给Worker',async()=>{
+  const fallback=createCommissionGenerator({WorkerClass:null,fetcher});
+  const first=await fallback(100),recentStructures=[describeStructure(first)];
+  const next=await fallback(101,{recentStructures,avoidFingerprints:[first.generationFingerprint]});
+  assert.notEqual(next.planning.shapeFamily,first.planning.shapeFamily);
+  let request;class Worker{postMessage(data){request=data;queueMicrotask(()=>this.onmessage({data:{level:next}}));}terminate(){}}
+  const generate=createCommissionGenerator({WorkerClass:Worker,fetcher});
+  await generate(101,{recentStructures});assert.deepEqual(request.recentStructures,recentStructures);
 });

@@ -30,7 +30,9 @@ test('第12至100关持续生成、阶段条件递进，单题不超过12类物�
     assert.deepEqual(validateLevel(level),[]);assert.deepEqual(generationQualityErrors(level),[]);
     assert.equal(evaluateLayout(level,level.reference).complete,true);
     assert.ok(!seen.has(level.generationFingerprint));seen.add(level.generationFingerprint);
-    if(chapter>=42)assert.ok(level.rules.filter(r=>r.type==='direction').length>=12);
+    assert.equal(level.clueQuality.effectiveDirections,level.rules.filter(r=>r.type==='direction').length);
+    assert.ok(level.clueQuality.witnesses.every(item=>item.exclusive>0));
+    if(chapter>=42)assert.equal(level.difficulty.tier,5);
   }
 });
 test('所有结构族的多组种子均有通行和家具参考解，缺角房间不是矩形贴图',()=>{

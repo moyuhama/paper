@@ -246,3 +246,8 @@
 .requirements-scrollbar[hidden]{display:none}
 .requirements-thumb{position:absolute;left:10px;top:0;width:5px;border-radius:3px;background:#a9a58d;pointer-events:auto}
 .requirements-scrollbar:focus-visible .requirements-thumb{outline:2px solid #647553;outline-offset:2px}
+
+/* Keep the content lesson dismiss control reachable on touch screens. */
+.content-coach .coach-close{width:44px;height:44px;display:grid;place-items:center;right:0;top:0}
+.content-coach .coach-kicker,.content-coach h2{padding-right:24px}
+.content-coach .rotate-demo svg{width:80px;height:52px}

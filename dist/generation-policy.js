@@ -1,9 +1,10 @@
 import {edgeParts,point,footprint} from './engine.js';
+import {effectiveDirections} from './clue-quality.js';
 export function difficultyFor(chapter){
   const tier=Math.max(0,Math.min(5,Math.floor((chapter-12)/6)));
   return {tier,directionBudget:4+tier*2,negativeBudget:Math.min(4,1+tier),maxVisibleRules:60,maxObjectKinds:12};
 }
-export function selectClues(level,chapter){
+export function selectClues(level,chapter,{deadline=Infinity}={}){
   const budget=difficultyFor(chapter),rules=level.rules;
   const directional=rules.filter(r=>r.type==='direction');
   let sideCount=0;
@@ -17,8 +18,8 @@ export function selectClues(level,chapter){
     }
     return true;
   });
-  const positive=directional.filter(r=>!r.forbidden).slice(0,budget.directionBudget),negative=directional.filter(r=>r.forbidden).slice(0,budget.negativeBudget);
-  const directions=[...positive,...negative];
+  const {rules:directions,quality}=effectiveDirections(level,directional,budget,{deadline});
+  level.clueQuality=quality;
   while(level.rules.length+directions.length>budget.maxVisibleRules){const index=level.rules.findLastIndex(r=>r.type==='boundaryCount'&&r.kind==='window');if(index<0)throw new Error('家具组合超出线索预算');level.rules.splice(index,1);}
   level.rules.push(...directions);
   level.difficulty=budget;
