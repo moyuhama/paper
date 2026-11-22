@@ -1,8 +1,10 @@
+import {roomArea,cellArea} from './geometry.js';
+import {createCommissionGenerator} from './generation-client.js';
 import {createId} from './ids.js';
 import {archiveConversation,completedCommissions} from './commission-history.js';
 import {renderPlan} from './plan-view.js';
 import {beginTouchCamera,updateTouchCamera} from './touch-camera.js';
-import {furnitureSVG,objectIcon} from './drawing-assets.js';
+import {furnitureSVG,objectIcon,structureSVG,cellSVG,edgePath,diagonalBoundarySVG} from './drawing-assets.js';
 import {GRID_PIXELS,clampZoom,cameraBox,draggedPan,zoomedPan} from './camera.js';
 import {createGameAudio} from './audio.js';
 import {OBJECTS,clone,point,cellKey,edgeKey,edgeParts,allEdges,edgeInfo,boundaryKind,footprint,objectRoom,bounds,initialLayout,evaluateLayout,validateLevel,paintRoom,eraseRect,placeBoundary,placeObject,rotateObject} from './engine.js';
@@ -19,7 +21,8 @@ let selectedId=null,hoverPoint=null,lastDrawTool='room',inspectedRule=null;
 let paletteFocus=null,requirementsReset=false,manualGuide=false,showRequirements=true,requirementsScroll=0,portraitHintDismissed=false,viewNeedsFit=true;
 const savedVolume=(key,fallback)=>typeof saved.settings?.[key]==='number'&&Number.isFinite(saved.settings[key])?Math.max(0,Math.min(1,saved.settings[key])):fallback;
 let screen='menu',settings={showTips:saved.settings?.showTips!==false,showGrid:saved.settings?.showGrid!==false,musicVolume:savedVolume('musicVolume',.5),effectsVolume:savedVolume('effectsVolume',.7)};
-const gameAudio=createGameAudio(settings);
+const gameAudio=createGameAudio(settings),generateCommission=createCommissionGenerator();
+let preparingCommission=false,generationRequest=0;
 let guideDone=saved.guideDone===true,guideStep=guideDone?null:0;
 try{if(saved.level&&validateLevel(saved.level).length===0){level=saved.level;layout=saved.layout;hints=saved.hints??3;submissions=saved.submissions||[];}}
 catch{}
@@ -84,21 +87,23 @@ function groupsHTML(check){
 }
 function boardHTML(){
   let svg='<defs><pattern id="direction-hatch" width=".2" height=".2" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0v.2" stroke="#b95b50" stroke-width=".045" opacity=".5"/></pattern></defs>';
+  svg+=`<defs><clipPath id="plot-clip">${level.outline.map(c=>cellSVG(level,c)).join('')}</clipPath></defs>`;
   // Room colour is beneath the requirements; walls, labels and furniture are above.
   let roomFills='';
   for(const cell of level.outline){
     const[x,y]=point(cell),room=level.rooms.find(r=>r.id===layout.cells[cell]);
-    if(room)roomFills+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${room.color}"/>`;
+    if(room)roomFills+=cellSVG(level,cell,`fill="${room.color}"`);
     // Preserve drawing hit targets without covering the text beneath this layer.
-    svg+=`<rect x="${x}" y="${y}" width="1" height="1" fill="transparent"/>`;
+    svg+=cellSVG(level,cell,'fill="transparent"');
   }
   const paperGrid=`<svg id="paper-grid" aria-hidden="true" viewBox="0 0 24 14"><defs><pattern id="paper-meter-grid" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#9b9b7c" stroke-opacity=".32" stroke-width=".018"/></pattern></defs>${roomFills}${settings.showGrid?'<rect id="map-grid" fill="url(#paper-meter-grid)"/>':''}</svg>`;
   for(const key of allEdges(level)){
     const {axis,x,y}=edgeParts(key),info=edgeInfo(level,layout,key),item=layout.edges[key],kind=boundaryKind(level,layout,key);
-    if(!info.outer&&(!info.rooms.some(Boolean)||info.rooms[0]===info.rooms[1]))continue;
+    if(axis==='d'){svg+=diagonalBoundarySVG(level,key,item);continue;}
+    if(!info.boundary&&(!info.rooms.some(Boolean)||info.rooms[0]===info.rooms[1]))continue;
     const line=(color,width,dash='')=>`<path d="M${x} ${y} ${axis==='h'?'h1':'v1'}" stroke="${color}" stroke-width="${width}" fill="none" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
     if(kind==='open'){svg+=line('#faf8ee',.09);continue;}
-    svg+=line('#474d40',info.outer?.105:.065);
+    svg+=line('#474d40',info.boundary?.105:.065);
     if(kind==='window'){
       svg+=line('#fffdf5',.11)+line('#6c999e',.035);
       if(axis==='h')svg+=`<path d="M${x+.02} ${y-.045}h.96M${x+.02} ${y+.045}h.96" stroke="#6c999e" stroke-width=".018"/>`;
@@ -111,14 +116,14 @@ function boardHTML(){
       if(kind==='entry')svg+=`<circle cx="${x+(axis==='h'?.1:0)}" cy="${y+(axis==='h'?0:.1)}" r=".07" fill="#506951"/>`;
     }
   }
-  svg+=directionOverlay();
+  svg+=structureSVG(level)+directionOverlay();
   for(const room of level.rooms){
     const cells=Object.keys(layout.cells).filter(c=>layout.cells[c]===room.id);if(!cells.length)continue;
     const rb=bounds(cells),cx=rb.x+rb.w/2,cy=rb.y+rb.h/2;
     // Labels move toward a free cell if the bounding-box center falls outside a concave room.
-    const occupied=new Set(layout.objects.flatMap(footprint));const free=cells.filter(c=>!occupied.has(c)&&point(c)[1]<rb.y+rb.h-1);
+    const occupied=new Set(layout.objects.flatMap(footprint));const free=cells.filter(c=>!level.geometry?.cellPolygons?.[c]&&!occupied.has(c)&&point(c)[1]<rb.y+rb.h-1);
     const nearest=[...(free.length?free:cells)].sort((a,b)=>{const[p,q]=point(a),[u,v]=point(b);return (p+.5-cx)**2+(q+.5-cy)**2-((u+.5-cx)**2+(v+.5-cy)**2);})[0];
-    const [lx,ly]=point(nearest);svg+=`<g class="room-label" pointer-events="none"><text x="${lx+.5}" y="${ly+.42}" text-anchor="middle">${esc(room.name)}</text><text class="area-label" x="${lx+.5}" y="${ly+.8}" text-anchor="middle">${cells.length}㎡</text></g>`;
+    const [lx,ly]=point(nearest);svg+=`<g class="room-label" pointer-events="none"><text x="${lx+.5}" y="${ly+.42}" text-anchor="middle">${esc(room.name)}</text><text class="area-label" x="${lx+.5}" y="${ly+.8}" text-anchor="middle">${roomArea(level,layout,room.id)}㎡</text></g>`;
   }
   for(const object of layout.objects)svg+=`<g data-object-id="${esc(object.id)}">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}</g>`;
   const selected=layout.objects.find(o=>o.id===selectedId);
@@ -191,11 +196,11 @@ function phoneHTML(){
   if(!phone)return '';
   const passed=evaluateLayout(level,layout).complete&&(review?.passed||submissions.at(-1)?.passed),previous=pastCommissions();
   const introduced=(level.progression?.newFurniture||[]).filter(kind=>OBJECTS[kind]).map(kind=>OBJECTS[kind].name);
-  return `<div class="phone-shade" data-action="close-phone"></div><aside class="phone" aria-label="任务手机"><div class="phone-speaker"></div><div class="phone-status"><span>纸上事务所</span><span>●●● ▰</span></div><div class="phone-title"><div class="avatar">林</div><div><strong>林工</strong><small>设计部 · 项目委托</small></div>${previous.length?`<button class="chat-history-link" data-action="past-commissions">往期 ${previous.length}</button>`:''}<button class="icon-button" data-action="close-phone" aria-label="收起手机">${icon('close')}</button></div><div class="chat">${previousThreadsHTML(previous)}<div class="chat-divider current-commission">${esc(level.title)} · 当前委托</div><div class="message incoming">新委托已经发给你。先看需求，图纸画好后交给我审核。${introduced.length?`这份委托新增${esc(introduced.join("、"))}，已加入铅笔物件列表。`:""}</div><div class="attachment"><small>设计需求 · ${esc(level.seed)}</small><strong>${esc(level.title)}</strong><p>${level.rooms.length}个房间 · ${level.rules.filter(r=>!r.hidden).length}项要求</p><button data-action="close-phone">查看图纸</button></div>${submissionMessages(submissions)}${passed?`<button class="primary next-task" data-action="next-task">领取下一份委托</button>`:''}</div><div class="phone-compose"><button class="submit-design primary" data-action="submit">提交设计稿</button><button class="hint-button" data-action="hint" ${hints<=0||attempt.completed?'disabled':''}>求助 ${hints}/3</button><p>提交后由林工审核设计稿</p></div></aside>`;
+  return `<div class="phone-shade" data-action="close-phone"></div><aside class="phone" aria-label="任务手机"><div class="phone-speaker"></div><div class="phone-status"><span>纸上事务所</span><span>●●● ▰</span></div><div class="phone-title"><div class="avatar">林</div><div><strong>林工</strong><small>设计部 · 项目委托</small></div>${previous.length?`<button class="chat-history-link" data-action="past-commissions">往期 ${previous.length}</button>`:''}<button class="icon-button" data-action="close-phone" aria-label="收起手机">${icon('close')}</button></div><div class="chat">${previousThreadsHTML(previous)}<div class="chat-divider current-commission">${esc(level.title)} · 当前委托</div><div class="message incoming">新委托已经发给你。先看需求，图纸画好后交给我审核。${level.planning?.label?`本次户型：${esc(level.planning.label)}。`:''}${Object.keys(level.fixedAreas||{}).length||level.fixedWalls?.length?'图上标出的固定结构不能占用或拆除。':''}${introduced.length?`这份委托新增${esc(introduced.join("、"))}，已加入铅笔物件列表。`:""}</div><div class="attachment"><small>设计需求 · ${esc(level.seed)}</small><strong>${esc(level.title)}</strong><p>${level.rooms.length}个房间 · ${level.rules.filter(r=>!r.hidden).length}项要求</p><button data-action="close-phone">查看图纸</button></div>${submissionMessages(submissions)}${passed?`<button class="primary next-task" data-action="next-task" ${preparingCommission?'disabled':''}>${preparingCommission?'正在准备委托…':'领取下一份委托'}</button>`:''}</div><div class="phone-compose"><button class="submit-design primary" data-action="submit">提交设计稿</button><button class="hint-button" data-action="hint" ${hints<=0||attempt.completed?'disabled':''}>求助 ${hints}/3</button><p>提交后由林工审核设计稿</p></div></aside>`;
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">本地试玩版</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.4.0</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -235,7 +240,7 @@ function submit(){
   if(check.complete&&!history.some(h=>(h.campaignId||'legacy')===campaignId&&h.id===level.id&&h.version===submissions.length)){history.push({id:level.id,campaignId,version:submissions.length,title:level.title,seed:level.seed,rooms:level.rooms.length,level:clone(level),layout:clone(layout),rating:rating?clone(rating):null,at:new Date().toISOString()});}
   gameAudio.play(check.complete?'success':'error');persist();render();
 }
-document.addEventListener('click',event=>{
+document.addEventListener('click',async event=>{
   const soundButton=event.target.closest('button');
   if(soundButton&&!soundButton.disabled){const action=soundButton.dataset.action;if(action!=='submit'&&action!=='rotate')gameAudio.play(action==='phone'||action==='close-phone'||action==='next-task'?'phone':'click');}
   const oldCommission=event.target.closest('[data-history-id]');if(oldCommission){viewingCommission=pastCommissions().find(item=>item.id===oldCommission.dataset.historyId);if(viewingCommission){chatScroll=$('.chat').scrollTop;modal='history';drag=null;render();}return;}
@@ -250,9 +255,9 @@ document.addEventListener('click',event=>{
   switch(action){
     case'start-game':screen='game';modal=null;if(!Object.keys(layout.cells).length)phone=true;render();break;
     case'main-menu':modal='return-menu';drag=null;hoverPoint=null;render();$('.return-dialog [autofocus]')?.focus();break;
-    case'confirm-main-menu':screen='menu';phone=false;modal=null;hoverPoint=null;drag=null;persist();render();break;
+    case'confirm-main-menu':generationRequest++;preparingCommission=false;screen='menu';phone=false;modal=null;hoverPoint=null;drag=null;persist();render();break;
     case'menu-settings':modal='settings';render();break;
-    case'new-game':localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;loadGameLevel(createOpeningLevel(),{archive:false});break;
+    case'new-game':generationRequest++;preparingCommission=false;localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;loadGameLevel(createOpeningLevel(),{archive:false});break;
     case'close-settings':modal=null;render();break;
     case'undo':undo();break;case'redo':redo();break;
     case'rotate':rotateCurrent();break;
@@ -273,7 +278,17 @@ document.addEventListener('click',event=>{
     case'help':modal='help';render();break;
     case'close-modal':modal=null;render();break;
     case'close-history':modal=null;viewingCommission=null;chatScroll=$('.chat')?.scrollTop??chatScroll;render();break;
-    case'next-task':loadGameLevel(createCampaignLevel((level.chapter||1)+1));break;
+    case'next-task':{
+      if(preparingCommission)return;
+      preparingCommission=true;const request=++generationRequest,previousId=level.id,previousCampaign=campaignId;render();
+      try{
+        const avoidFingerprints=[level.generationFingerprint,...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level?.generationFingerprint)].filter(Boolean);
+        const next=await generateCommission((level.chapter||1)+1,{avoidFingerprints});
+        if(request===generationRequest&&screen==='game'&&level.id===previousId&&campaignId===previousCampaign)loadGameLevel(next);
+      }catch{if(request===generationRequest)toast('新委托暂未准备好，当前图纸已保存，请重试。');}
+      finally{if(request===generationRequest){preparingCommission=false;render();}}
+      break;
+    }
     case'submit':submit();break;
     case'hint':{
       if(hints<=0||attempt.completed)return;
@@ -291,7 +306,7 @@ function syncView(){
   cameraFrame=0;syncRequirementsScroll();const svg=$('#blueprint');if(!svg)return;
   const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;
   const b=bounds(level.outline);
-  if(viewNeedsFit){if(window.matchMedia('(max-width:600px), (max-width:1100px) and (max-height:600px)').matches)zoom=clampZoom(Math.min(1,(r.width-36)/(b.w*GRID_PIXELS),(r.height-64)/(b.h*GRID_PIXELS)));viewNeedsFit=false;}
+  if(viewNeedsFit){if(window.matchMedia('(max-width:600px), (max-width:1100px) and (max-height:600px)').matches)zoom=clampZoom(Math.max(level.rooms.length>=6?.65:.4,Math.min(1,(r.width-36)/(b.w*GRID_PIXELS),(r.height-64)/(b.h*GRID_PIXELS))));viewNeedsFit=false;}
   const v=cameraBox(r,{x:b.x+b.w/2,y:b.y+b.h/2},pan,zoom);
   for(const layer of [svg,$('#paper-grid')])layer?.setAttribute('viewBox',`${v.x} ${v.y} ${v.w} ${v.h}`);
   const grid=$('#map-grid');if(grid)for(const [key,value]of Object.entries({x:v.x,y:v.y,width:v.w,height:v.h}))grid.setAttribute(key,value);
@@ -315,7 +330,10 @@ function movePan(event){
   pan=draggedPan(drag.origin,{x:event.clientX-drag.client.x,y:event.clientY-drag.client.y},drag.zoom);queueView();
 }
 function svgPoint(event){const svg=$('#blueprint'),p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;return p.matrixTransform(svg.getScreenCTM().inverse());}
-function closestEdge(p){const x=Math.floor(p.x),y=Math.floor(p.y),dx=p.x-x,dy=p.y-y;const min=Math.min(dx,1-dx,dy,1-dy);return min===dx?edgeKey('v',x,y):min===1-dx?edgeKey('v',x+1,y):min===dy?edgeKey('h',x,y):edgeKey('h',x,y+1);}
+function closestEdge(p){
+  let nearest=null,best=Math.max(.18,18/(GRID_PIXELS*zoom));
+  for(const segment of level.geometry?.segments||[]){const{a,b}=segment,dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((p.x-a[0])*dx+(p.y-a[1])*dy)/(dx*dx+dy*dy))),distance=Math.hypot(p.x-a[0]-t*dx,p.y-a[1]-t*dy);if(distance<best){best=distance;nearest=segment.key;}}
+  const x=Math.floor(p.x),y=Math.floor(p.y),dx=p.x-x,dy=p.y-y;const min=Math.min(dx,1-dx,dy,1-dy);const regular=min===dx?edgeKey('v',x,y):min===1-dx?edgeKey('v',x+1,y):min===dy?edgeKey('h',x,y):edgeKey('h',x,y+1),info=edgeInfo(level,layout,regular);return nearest&&(!(info.boundary||info.internal||info.fixed)||best<min)?nearest:regular;}
 function rectangle(a,b){const ax=Math.floor(a.x),ay=Math.floor(a.y),bx=Math.floor(b.x),by=Math.floor(b.y);return{x:Math.min(ax,bx),y:Math.min(ay,by),w:Math.abs(ax-bx)+1,h:Math.abs(ay-by)+1};}
 function showPlacementPreview(p){
   const node=$('#drawing-preview');if(!node)return;
@@ -343,9 +361,10 @@ function previewAt(p){
   if(drag.mode==='object'){hoverPoint=p;showPlacementPreview(p);return;}
   if(drag.mode==='room'||drag.mode==='eraser'){
     const r=rectangle(drag.start,p),room=level.rooms.find(r=>r.id===selectedRoom);
-    node.innerHTML=`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${drag.mode==='eraser'?'#cf7767':room.color}" opacity=".65" stroke="${drag.mode==='eraser'?'#9b4d41':'#4b6750'}" stroke-width=".05" stroke-dasharray=".12 .08"/><text x="${r.x+r.w/2}" y="${r.y+r.h/2+.1}" font-size=".4" text-anchor="middle" fill="#374633">${r.w*r.h}㎡</text>`;
+    const actualArea=level.outline.filter(c=>{const[x,y]=point(c);return x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h;}).reduce((sum,c)=>sum+cellArea(level,c),0);
+    node.innerHTML=`<rect clip-path="url(#plot-clip)" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${drag.mode==='eraser'?'#cf7767':room.color}" opacity=".65" stroke="${drag.mode==='eraser'?'#9b4d41':'#4b6750'}" stroke-width=".05" stroke-dasharray=".12 .08"/><text x="${r.x+r.w/2}" y="${r.y+r.h/2+.1}" font-size=".4" text-anchor="middle" fill="#374633">${actualArea}㎡</text>`;
   }else if(['door','window','open'].includes(drag.mode)){
-    drag.edges.add(closestEdge(p));node.innerHTML=[...drag.edges].map(k=>{const{axis,x,y}=edgeParts(k);return `<path d="M${x} ${y}${axis==='h'?'h1':'v1'}" stroke="#547758" stroke-width=".14" opacity=".65"/>`;}).join('');
+    drag.edges.add(closestEdge(p));node.innerHTML=[...drag.edges].map(k=>{const{axis,x,y}=edgeParts(k);return `<path d="${edgePath(k)}" stroke="#547758" stroke-width=".14" opacity=".65"/>`;}).join('');
   }else if(drag.object){const object={...drag.object,x:Math.floor(p.x)-drag.offset.x,y:Math.floor(p.y)-drag.offset.y},r=bounds(footprint(object)),valid=!!placeObject(level,layout,object).layout;node.innerHTML=`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${valid?'#74a471':'#d78276'}" fill-opacity=".2" stroke="${valid?'#497b45':'#b05f54'}" stroke-width=".045"/><g opacity=".75">${furnitureSVG(object.kind,object.x,object.y,object.rotation)}</g>`;}
 }
 function finish(event){

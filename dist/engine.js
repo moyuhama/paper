@@ -1,29 +1,43 @@
+import {roomArea,axisEdgePresent,validateGeometry} from './geometry.js';
+export {roomArea} from './geometry.js';
 // Pure shared rules: browser feedback, submission and generated reference checks.
 export const ENGINE_VERSION = 'prototype-1';
-export const OBJECTS = {
-  bed:{name:'双人床',w:2,h:2}, singleBed:{name:'单人床',w:1,h:2},
-  sofa:{name:'双人沙发',w:2,h:1}, chair:{name:'单人沙发',w:1,h:1},
-  table:{name:'餐桌餐椅',w:2,h:2}, stove:{name:'炉具',w:1,h:1},
-  sink:{name:'洗碗池',w:1,h:1}, toilet:{name:'马桶',w:1,h:1},
-  shower:{name:'淋浴',w:1,h:1}, wardrobe:{name:'衣柜',w:1,h:2}, bathtub:{name:'浴缸',w:1,h:2}
-};
+import {OBJECTS} from './catalog.js';
+export {OBJECTS} from './catalog.js';
 export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage','connectionCount','walkable']);
 export const clone = value => structuredClone(value);
 export const cellKey = (x,y) => `${x},${y}`;
 export const point = key => key.split(',').map(Number);
 export const edgeKey = (axis,x,y) => `${axis}:${x}:${y}`;
-export const edgeParts = key => { const [axis,x,y]=key.split(':');return {axis,x:+x,y:+y}; };
-export function edgeCells(key) { const {axis,x,y}=edgeParts(key); return axis==='v' ? [cellKey(x-1,y),cellKey(x,y)] : [cellKey(x,y-1),cellKey(x,y)]; }
-export function allEdges(level) {
-  const result=new Set();
-  for(const cell of level.outline){const[x,y]=point(cell); result.add(edgeKey('v',x,y));result.add(edgeKey('v',x+1,y));result.add(edgeKey('h',x,y));result.add(edgeKey('h',x,y+1));}
-  return [...result];
+export const edgeParts=key=>{const[axis,x,y,bx,by]=key.split(':');return {axis,x:+x,y:+y,...(axis==='d'?{a:[+x,+y],b:[+bx,+by]}:{})};};
+export function edgeCells(key) { const {axis,x,y,a,b}=edgeParts(key);if(axis==='d')return [cellKey(Math.floor((a[0]+b[0])/2),Math.floor((a[1]+b[1])/2))]; return axis==='v' ? [cellKey(x-1,y),cellKey(x,y)] : [cellKey(x,y-1),cellKey(x,y)]; }
+const geometryCache=new WeakMap();
+function geometryFor(level){
+  let cached=geometryCache.get(level);
+  if(cached&&cached.source===level.outline&&cached.count===level.outline.length&&cached.areas===level.fixedAreas&&cached.walls===level.fixedWalls&&cached.geometry===level.geometry)return cached;
+  const outline=new Set(level.outline),edges=new Set(),walls=new Set(level.fixedWalls||[]),exterior=new Set();
+  for(const cell of outline){const[x,y]=point(cell);edges.add(edgeKey('v',x,y));edges.add(edgeKey('v',x+1,y));edges.add(edgeKey('h',x,y));edges.add(edgeKey('h',x,y+1));}
+  for(const key of [...edges])if(!edgeCells(key).some(cell=>outline.has(cell)&&axisEdgePresent(level,cell,key)))edges.delete(key);
+  for(const segment of level.geometry?.segments||[])edges.add(segment.key);
+  if(outline.size){
+    const b=bounds([...outline]),start=cellKey(b.x-1,b.y-1),queue=[start];exterior.add(start);
+    for(let i=0;i<queue.length;i++)for(const n of neighbors(queue[i])){
+      const[x,y]=point(n);if(x<b.x-1||x>b.x+b.w||y<b.y-1||y>b.y+b.h||outline.has(n)||level.fixedAreas?.[n]||exterior.has(n))continue;
+      exterior.add(n);queue.push(n);
+    }
+  }
+  cached={source:level.outline,count:level.outline.length,areas:level.fixedAreas,walls:level.fixedWalls,geometry:level.geometry,outline,edges:[...edges],wallSet:walls,exterior};geometryCache.set(level,cached);return cached;
+}
+export function allEdges(level){return geometryFor(level).edges;}
+export function crossesFixedWall(level,object){
+  const cells=new Set(footprint(object));
+  return (level.fixedWalls||[]).some(key=>edgeCells(key).every(c=>cells.has(c)));
 }
 export function neighbors(cell) {const[x,y]=point(cell);return [[x-1,y],[x+1,y],[x,y-1],[x,y+1]].map(([a,b])=>cellKey(a,b));}
-export function connected(cells) {
+export function connected(cells,level) {
   if(!cells.length)return false;
   const set=new Set(cells), seen=new Set([cells[0]]), queue=[cells[0]];
-  for(let i=0;i<queue.length;i++)for(const c of neighbors(queue[i]))if(set.has(c)&&!seen.has(c)){seen.add(c);queue.push(c);}
+  for(let i=0;i<queue.length;i++)for(const c of neighbors(queue[i]))if(set.has(c)&&!seen.has(c)){if(level){const[x,y]=point(queue[i]),[nx,ny]=point(c),key=nx===x?edgeKey('h',x,Math.max(y,ny)):edgeKey('v',Math.max(x,nx),y),info=edgeInfo(level,{cells:{}},key);if(!info.inside.every(Boolean)||info.fixed)continue;}seen.add(c);queue.push(c);}
   return seen.size===set.size;
 }
 export function bounds(cells) {
@@ -41,9 +55,12 @@ export function objectRoom(layout,object) {
 }
 export function initialLayout(level) {return {cells:{},edges:clone(level.fixedEdges||{}),objects:[]};}
 export function edgeInfo(level,layout,key) {
-  const outline=new Set(level.outline),cells=edgeCells(key),inside=cells.map(c=>outline.has(c));
-  const rooms=cells.map((c,i)=>inside[i]?layout.cells[c]||null:null);
-  return {cells,inside,rooms,outer:inside[0]!==inside[1],internal:inside[0]&&inside[1]&&!!rooms[0]&&!!rooms[1]&&rooms[0]!==rooms[1]};
+  const geometry=geometryFor(level),segment=level.geometry?.segments?.find(s=>s.key===key);
+  if(segment)return {cells:[segment.cell],inside:[true,false],rooms:[layout.cells[segment.cell]||null,null],outer:true,boundary:true,structural:false,fixed:false,windowAllowed:true,internal:false};
+  const cells=edgeCells(key),inside=cells.map(c=>geometry.outline.has(c)&&axisEdgePresent(level,c,key));
+  const rooms=cells.map((c,i)=>inside[i]?layout.cells[c]||null:null),outside=cells.find((c,i)=>!inside[i]);
+  const boundary=inside[0]!==inside[1],outer=boundary&&(geometry.exterior.has(outside)||!!level.geometry?.cellPolygons?.[outside]);
+  return {cells,inside,rooms,outer,boundary,structural:boundary&&!outer,fixed:geometry.wallSet.has(key),windowAllowed:outer||boundary&&level.fixedAreas?.[outside]==='courtyard',internal:inside[0]&&inside[1]&&!!rooms[0]&&!!rooms[1]&&rooms[0]!==rooms[1]};
 }
 export function boundaryKind(level,layout,key) {
   const item=layout.edges[key];if(!item)return null;
@@ -63,9 +80,9 @@ export function sharedEdges(level,layout,a,b,side) {
 }
 function entities(level,layout,selector) {
   if(selector.kind==='window'||selector.kind==='door'||selector.kind==='entry'){
-    return Object.keys(layout.edges).filter(key=>boundaryKind(level,layout,key)===selector.kind).filter(key=>!selector.roomId||edgeInfo(level,layout,key).rooms.includes(selector.roomId)).map(key=>({id:key,cells:edgeCells(key).filter(c=>level.outline.includes(c))}));
+    return Object.keys(layout.edges).filter(key=>boundaryKind(level,layout,key)===selector.kind).filter(key=>!selector.roomId||edgeInfo(level,layout,key).rooms.includes(selector.roomId)).map(key=>{const info=edgeInfo(level,layout,key);return {id:key,cells:info.cells.filter((c,i)=>info.inside[i])};});
   }
-  return layout.objects.filter(o=>o.kind===selector.kind&&(!selector.roomId||objectRoom(layout,o)===selector.roomId)).map(o=>({id:o.id,cells:footprint(o)}));
+  return layout.objects.filter(o=>(!selector.objectId||o.id===selector.objectId)&&o.kind===selector.kind&&(!selector.roomId||objectRoom(layout,o)===selector.roomId)).map(o=>({id:o.id,cells:footprint(o)}));
 }
 export function inDirection(sourceCells,targetCells,direction) {
   if(!sourceCells.length||!targetCells.length)return false;
@@ -93,9 +110,9 @@ export function walkabilityErrors(level,layout){
   const errors=[],outline=new Set(level.outline),occupied=new Set(layout.objects.flatMap(footprint));
   const free=new Set(Object.keys(layout.cells).filter(c=>!occupied.has(c))),starts=[];
   for(const [key,item]of Object.entries(layout.edges))if(item.kind==='door'){
-    const inside=edgeCells(key).filter(c=>outline.has(c));
+    const info=edgeInfo(level,layout,key),inside=info.cells.filter((c,i)=>info.inside[i]);
     if(inside.some(c=>!free.has(c)))errors.push('门口不能被家具或未绘制区域阻挡');
-    if(inside.length===1&&free.has(inside[0]))starts.push(inside[0]);
+    if(edgeInfo(level,layout,key).outer&&free.has(inside[0]))starts.push(inside[0]);
   }
   if(!starts.length)return ['需要可通行的入户门'];
   const seen=new Set(starts),queue=[...seen];
@@ -103,6 +120,7 @@ export function walkabilityErrors(level,layout){
     const c=queue[i],[x,y]=point(c);
     for(const n of neighbors(c))if(free.has(n)&&!seen.has(n)){
       const [nx,ny]=point(n),key=nx===x?edgeKey('h',x,Math.max(y,ny)):edgeKey('v',Math.max(x,nx),y);
+      if(geometryFor(level).wallSet.has(key)||!edgeInfo(level,layout,key).inside.every(Boolean))continue;
       if(layout.cells[c]!==layout.cells[n]&&!['door','open'].includes(layout.edges[key]?.kind))continue;
       seen.add(n);queue.push(n);
     }
@@ -116,14 +134,14 @@ export function evaluateRule(level,layout,rule) {
   let actual,ok=false;
   if(rule.roomId&&!Object.values(layout.cells).includes(rule.roomId))return {id:rule.id,group:rule.group||rule.roomId,ok:false,actual:'未绘制房间',text:rule.text,type:rule.type};
   switch(rule.type){
-    case'area':actual=Object.values(layout.cells).filter(id=>id===rule.roomId).length;ok=compare(actual,rule);break;
+    case'area':actual=roomArea(level,layout,rule.roomId);ok=compare(actual,rule);break;
     case'objectCount':actual=entities(level,layout,{kind:rule.kind,roomId:rule.roomId}).length;ok=compare(actual,rule);break;
     case'boundaryCount':actual=roomEdges(level,layout,rule.roomId,rule.side).filter(key=>boundaryKind(level,layout,key)===rule.kind).length;ok=compare(actual,rule);break;
     case'globalCount':actual=Object.keys(layout.edges).filter(key=>boundaryKind(level,layout,key)===rule.kind).length;ok=compare(actual,rule);break;
     case'adjacent':actual=sharedEdges(level,layout,rule.roomId,rule.targetRoomId).length>0;ok=actual===!rule.forbidden;break;
     case'direction':{
       const counts=directionCounts(level,layout,rule.source,rule.target,rule.direction);actual=counts.length?counts.join(' / '):'缺少参考家具';
-      ok=counts.length>0&&counts.every(n=>rule.forbidden?n===0:compare(n,rule));break;
+      ok=counts.length>0&&counts[rule.quantifier==='any'?'some':'every'](n=>rule.forbidden?n===0:compare(n,rule));break;
     }
     case'fullOpen':{const edges=sharedEdges(level,layout,rule.roomId,rule.targetRoomId,rule.side);actual=edges.filter(k=>layout.edges[k]?.kind==='open').length;ok=edges.length>0&&actual===edges.length;break;}
     case'openLength':actual=sharedEdges(level,layout,rule.roomId,rule.targetRoomId).filter(k=>layout.edges[k]?.kind==='open').length;ok=compare(actual,rule);break;
@@ -139,15 +157,18 @@ export function integrityErrors(level,layout) {
   const shapeErrors=validateLayoutShape(level,layout);if(shapeErrors.length)return shapeErrors;
   const errors=[],outline=new Set(level.outline),ids=new Set(level.rooms.map(r=>r.id));
   for(const[c,id]of Object.entries(layout.cells))if(!outline.has(c)||!ids.has(id))errors.push('存在轮廓外区域或未知房间');
-  for(const room of level.rooms){const cells=Object.keys(layout.cells).filter(c=>layout.cells[c]===room.id);if(cells.length&&!connected(cells))errors.push(`${room.name}须连成整体，角接触不算连接`);}
+  for(const room of level.rooms){const cells=Object.keys(layout.cells).filter(c=>layout.cells[c]===room.id);if(cells.length&&!connected(cells,level))errors.push(`${room.name}须连成整体，角接触不算连接`);}
   const occupied=new Set();
   for(const object of layout.objects){
+    if(footprint(object).some(c=>level.geometry?.cellPolygons?.[c]))errors.push('家具不能越过斜墙');
+    if(crossesFixedWall(level,object))errors.push('家具不能跨越固定墙');
     if(!objectRoom(layout,object))errors.push(`${OBJECTS[object.kind]?.name||'家具'}须完整放在同一房间内`);
     for(const cell of footprint(object)){if(occupied.has(cell))errors.push('家具不能重叠');occupied.add(cell);}
   }
   for(const[key,item]of Object.entries(layout.edges)){
     const info=edgeInfo(level,layout,key);
-    if(item.kind==='window'&&!info.outer)errors.push('当前版本的窗须放在外墙上');
+    if(info.fixed)errors.push('固定墙不可改为门窗或开放连接');
+    if(item.kind==='window'&&!info.windowAllowed)errors.push('当前版本的窗须放在外墙上');
     if(item.kind==='door'&&!(info.outer?info.rooms.some(Boolean):info.internal))errors.push('门须位于有效的外墙或两房公共墙上');
     if(item.kind==='open'&&!info.internal)errors.push('开放连接两侧须有不同房间');
   }
@@ -173,11 +194,12 @@ export function evaluateLayout(level,layout){
 export function validateLevel(level) {
   const errors=[];
   if(!level||typeof level!=='object')return ['关卡须为对象'];
-  if(level.schemaVersion!==1)errors.push('不支持的关卡格式版本');
+  if(![1,2].includes(level.schemaVersion))errors.push('不支持的关卡格式版本');
   if(level.rulesVersion!==ENGINE_VERSION)errors.push('不支持的规则集版本');
   if(!Array.isArray(level.outline)||!level.outline.length||new Set(level.outline).size!==level.outline.length)errors.push('轮廓必须非空且无重复格');
   const validCell=c=>typeof c==='string'&&/^\d+,\d+$/.test(c);
   if(!level.outline?.every(validCell))errors.push('轮廓坐标须为非负整数');
+  if(Array.isArray(level.outline))errors.push(...validateGeometry(level));
   const ids=new Set(level.rooms?.map(r=>r.id));
   if(!level.rooms?.length||ids.size!==level.rooms.length)errors.push('房间ID须唯一且非空');
   for(const room of level.rooms||[]){
@@ -187,6 +209,8 @@ export function validateLevel(level) {
   }
   const legalEdges=new Set(Array.isArray(level.outline)&&level.outline.every(validCell)?allEdges(level):[]);
   for(const[key,item]of Object.entries(level.fixedEdges||{}))if(!legalEdges.has(key)||!['window','door'].includes(item?.kind))errors.push('固定元素须为有效边界上的门窗');
+  for(const [cell,kind]of Object.entries(level.fixedAreas||{}))if(!validCell(cell)||level.outline.includes(cell)||!['column','shaft','courtyard'].includes(kind))errors.push('固定区域类型或占地无效');
+  if(level.fixedWalls&&(!Array.isArray(level.fixedWalls)||level.fixedWalls.some(key=>!legalEdges.has(key))))errors.push('固定墙须位于有效边界');
   const seen=new Set();
   for(const rule of level.rules||[]){
     if(!rule.id||seen.has(rule.id))errors.push('条件ID缺失或重复');seen.add(rule.id);
@@ -195,6 +219,7 @@ export function validateLevel(level) {
     if(rule.group&&rule.group!=='global'&&!ids.has(rule.group))errors.push(`条件${rule.id}分组无效`);
     if(rule.side&&!['N','S','W','E'].includes(rule.side))errors.push(`条件${rule.id}墙面方向无效`);
     for(const id of [rule.roomId,rule.targetRoomId,rule.source?.roomId,rule.target?.roomId])if(id&&!ids.has(id))errors.push(`条件${rule.id}引用未知房间：${id}`);
+    if(rule.quantifier&&!['all','any'].includes(rule.quantifier))errors.push(`条件${rule.id}来源量词无效`);
     if(rule.type==='direction'&&(!rule.source?.kind||!rule.target?.kind||!['N','S','W','E'].includes(rule.direction)))errors.push(`条件${rule.id}方向参数无效`);
     for(const selector of [rule.source,rule.target])if(selector&&!OBJECTS[selector.kind]&&!['window','door','entry'].includes(selector.kind))errors.push(`条件${rule.id}引用未知物件`);
     if(['area','objectCount','boundaryCount','globalCount','openLength','connectionCount'].includes(rule.type)&&(!Number.isFinite(rule.value)||rule.value<0))errors.push(`条件${rule.id}数量无效`);
@@ -209,14 +234,15 @@ export function validateLevel(level) {
   return [...new Set(errors)];
 }
 export function paintRoom(level,layout,roomId,rect) {
-  const next=clone(layout),outline=new Set(level.outline);
+  const next=clone(layout),outline=new Set(level.outline);let painted=0;
   for(let y=rect.y;y<rect.y+rect.h;y++)for(let x=rect.x;x<rect.x+rect.w;x++){
     const c=cellKey(x,y);if(!outline.has(c))continue;
     if(next.cells[c]&&next.cells[c]!==roomId)return {error:'先擦除已有房间，再绘制新房间'};
-    next.cells[c]=roomId;
+    next.cells[c]=roomId;painted++;
   }
+  if(!painted)return {error:'范围内没有可规划区域，固定结构不能占用'};
   const own=Object.keys(next.cells).filter(c=>next.cells[c]===roomId);
-  if(!connected(own))return {error:'追加区域须与同一房间边接触'};
+  if(!connected(own,level))return {error:'追加区域须与同一房间边接触'};
   return {layout:next};
 }
 export function eraseRect(level,layout,rect,filter='all') {
@@ -232,15 +258,18 @@ export function eraseRect(level,layout,rect,filter='all') {
   return next;
 }
 export function placeBoundary(level,layout,key,kind) {
+  if((level.fixedWalls||[]).includes(key))return {error:'这是固定墙，不能放置门窗或开放连接'};
   if(level.fixedEdges?.[key])return {error:'这是固定门窗，不能修改'};
   const info=edgeInfo(level,layout,key);
-  if(kind==='window'&&(!info.outer||!info.rooms.some(Boolean)))return {error:'请在已绘制房间的外墙上放窗'};
+  if(kind==='window'&&(!info.windowAllowed||!info.rooms.some(Boolean)))return {error:'请在已绘制房间的外墙上放窗'};
   if(kind==='door'&&!(info.outer?info.rooms.some(Boolean):info.internal))return {error:'请先绘制墙两侧的房间，外墙门需内侧已有房间'};
   if(kind==='open'&&!info.internal)return {error:'开放连接两侧须先画好不同房间'};
   const next=clone(layout);next.edges[key]={kind};return {layout:next};
 }
 export function placeObject(level,layout,object) {
   const next=clone(layout);next.objects=next.objects.filter(o=>o.id!==object.id);next.objects.push(object);
+  if(footprint(object).some(c=>level.geometry?.cellPolygons?.[c]))return {error:'家具不能越过斜墙，请放到完整可用空间'};
+  if(crossesFixedWall(level,object))return {error:'家具不能跨越固定墙'};
   if(!objectRoom(next,object))return {error:'家具须完整放入同一房间'};
   const cells=new Set(footprint(object));if(next.objects.some(o=>o.id!==object.id&&footprint(o).some(c=>cells.has(c))))return {error:'家具不能重叠'};
   return {layout:next};
