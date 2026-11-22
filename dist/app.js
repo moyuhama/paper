@@ -222,7 +222,7 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.9.0</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.0</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -318,7 +318,7 @@ document.addEventListener('click',async event=>{
       try{
         const avoidFingerprints=[level.generationFingerprint,...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level?.generationFingerprint)].filter(Boolean);
         const recentStructures=[...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level),level].filter(item=>item?.reference).slice(-8).map(describeStructure);
-        const next=await generateCommission((level.chapter||1)+1,{avoidFingerprints,recentStructures});
+        const next=await generateCommission((level.chapter||1)+1,{avoidFingerprints,recentStructures,variationSeed:campaignId});
         if(request===generationRequest&&screen==='game'&&level.id===previousId&&campaignId===previousCampaign)loadGameLevel(next);
       }catch{if(request===generationRequest)toast('新委托暂未准备好，当前图纸已保存，请重试。');}
       finally{if(request===generationRequest){preparingCommission=false;render();}}

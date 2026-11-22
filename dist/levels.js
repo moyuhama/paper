@@ -1,3 +1,4 @@
+import {variationKey} from './variation-seed.js';
 import {configureInstances,addInstanceRule,instanceName} from './instances.js';
 import {createUseSpacePlan,referenceUseSpaceOK,addSpatialRules} from './spatial-generation.js';
 import {addFurnitureInstances,mechanicsAt,mechanicsIntroducedAt} from './mechanics.js';
@@ -11,7 +12,7 @@ import {createResidentialPlan} from './residential.js';
 import {unlockedFurnitureAt,furnitureIntroducedAt} from './progression.js';
 import {generationQualityErrors} from './generation-quality.js';
 import {walkabilityErrors,crossesFixedWall,footprint,neighbors,edgeCells,boundaryKind,ENGINE_VERSION,OBJECTS,cellKey,point,allEdges,edgeInfo,edgeParts,sharedEdges,roomEdges,objectRoom,directionCounts,evaluateLayout,validateLevel,clone} from './engine.js';
-export const GENERATOR_VERSION='0.8.0';
+export const GENERATOR_VERSION='0.10.0';
 // Catalogue changes do not need to reshuffle the established spatial seed stream.
 const SEED_STREAM_VERSION='0.2.0';
 const ROLES=ROOM_CATALOG;
@@ -193,7 +194,8 @@ export function paletteForLevel(level,tutorialStage=5){
 function campaignCandidate(chapter,variant=0,options={}){
   unlockedFurnitureAt(chapter);
   if(chapter===1)return createOpeningLevel();
-  const mode=chapter===2?'intro':chapter<9?'standard':'complex',level=generateLevel('委托-'+chapter+(variant?'-'+variant:''),mode,{...options,chapter});
+  const key=chapter>=12?variationKey(options.variationSeed):'';
+  const mode=chapter===2?'intro':chapter<9?'standard':'complex',level=generateLevel('委托-'+chapter+(key?'-'+key:'')+(variant?'-'+variant:''),mode,{...options,chapter});
   if(chapter<4)level.rules=level.rules.filter(r=>r.type!=='direction');
   if(chapter>=46&&!level.rules.some(r=>r.source?.tag||r.target?.tag))throw new Error('指定家具缺少有效标记条件');
   if(chapter===40&&!level.rules.some(r=>r.type==='direction'&&r.quantifier==='any'))throw new Error('量词教学缺少有效的至少一个条件');
@@ -203,7 +205,7 @@ function campaignCandidate(chapter,variant=0,options={}){
 }
 
 export function createCampaignLevel(chapter,options={}){
-  const avoid=new Set(options.avoidFingerprints||[]),deadline=Date.now()+(options.budgetMs??1200);
+  const avoid=new Set(options.avoidFingerprints||[]),deadline=Date.now()+(options.budgetMs??1200),variation=chapter>=12?variationKey(options.variationSeed):'';
   const recent=options.recentStructures||[];let reason,best,bestScore=Infinity;
   for(let variant=0;variant<6;variant++){
     if(Date.now()>deadline)break;
@@ -213,14 +215,14 @@ export function createCampaignLevel(chapter,options={}){
         const available=Object.keys(SHAPE_UNLOCKS).filter(id=>SHAPE_UNLOCKS[id]<=chapter);
         const fresh=available.filter(id=>!recent.slice(-2).some(item=>item.family===id));
         const pool=fresh.length?fresh:available;
-        family=pool[Math.floor(randomFromSeed('variety:'+chapter+':'+variant)()*pool.length)];
+        family=pool[Math.floor(randomFromSeed('variety:'+(variation?variation+':':'')+chapter+':'+variant)()*pool.length)];
       }
       const level=campaignCandidate(chapter,variant,{...options,family,deadline});
       level.generationFingerprint=levelFingerprint(level);
       if(avoid.has(level.generationFingerprint)){reason='近期已有相似委托';continue;}
       const structure=describeStructure(level),score=repetitionScore(structure,recent);
       level.generationStructure=structure;
-      level.generation={source:'worker-generated',similarity:score};
+      level.generation={source:'worker-generated',similarity:score,...(variation?{variationKey:variation}:{})};
       if(score<bestScore){best=level;bestScore=score;}
       if(score<.93||SHAPE_INTRODUCTIONS[chapter])return level;
     }catch(error){reason=error.message;}

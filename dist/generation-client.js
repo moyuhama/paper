@@ -1,3 +1,4 @@
+import {variationKey} from './variation-seed.js';
 import {mechanicsAt,mechanicsIntroducedAt,supportsMechanics} from './mechanics.js';
 import {describeStructure,repetitionScore,rankFallbackEntries} from './puzzle-diversity.js';
 import {difficultyFor} from './generation-policy.js';
@@ -9,29 +10,32 @@ function verified(level,chapter=level.chapter){const allowed=new Set(unlockedFur
 export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher=globalThis.fetch,timeoutMs=1500,onMeasure=()=>{},now=()=>performance.now()}={}){
   let fallbackPromise;
   const indexURL=new URL('./data/fallback-index.json',import.meta.url);
-  async function json(url){
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
+  async function json(url,timeoutMs=5000){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
     try{const response=await fetcher(url,{signal:controller.signal,cache:'no-cache'});if(!response.ok)throw new Error('委托内容暂时不可用');return await response.json();}
     finally{clearTimeout(timer);}
   }
-  async function fallback(chapter,avoid,recent){
+  async function fallback(chapter,avoid,recent,variationSeed){
+    const deadline=now()+10000;
     fallbackPromise??=json(indexURL).catch(error=>{fallbackPromise=null;throw error;});
     const bank=await fallbackPromise;if(bank.contentVersion!==CONTENT_VERSION)throw new Error('委托内容版本不一致，请刷新后重试');
     const allowed=new Set(unlockedFurnitureAt(chapter)),required=furnitureIntroducedAt(chapter);
     const pool=bank.entries.filter(entry=>(chapter<=66?entry.chapter===chapter:entry.chapter>=30&&entry.tier===difficultyFor(chapter).tier)&&(entry.chapter<12||!entry.family||SHAPE_UNLOCKS[entry.family]<=chapter)&&!avoid.includes(entry.fingerprint)&&mechanicsAt(chapter).every(key=>(entry.mechanics||[]).includes(key)));
-    let best,bestScore=Infinity;
-    for(const entry of rankFallbackEntries(pool,recent).slice(0,3)){
+    let best,bestScore=Infinity,lastDownloadError;
+    for(const entry of rankFallbackEntries(pool,recent,{variationKey:variationKey(variationSeed),chapter}).slice(0,3)){
       if(!/^levels\/\d+\.json$/.test(entry.file))continue;
-      const source=await json(new URL(entry.file,indexURL));
+      const remaining=deadline-now();if(remaining<=0)break;
+      let source;try{source=await json(new URL(entry.file,indexURL),Math.min(5000,remaining));}catch(error){lastDownloadError=error;continue;}
       if(!source||source.generationFingerprint!==entry.fingerprint||source.contentVersion!==bank.contentVersion||!verified(source,chapter)||!source.reference.objects.every(o=>allowed.has(o.kind))||!required.every(kind=>source.reference.objects.some(o=>o.kind===kind)))continue;
       const level=clone(source);level.id='story:'+chapter;level.chapter=chapter;level.title='第'+chapter+'份委托';level.progression={newFurniture:required,newMechanics:mechanicsIntroducedAt(chapter)};level.generationStructure=describeStructure(level);const score=repetitionScore(level.generationStructure,recent);level.generation={source:'verified-fallback',similarity:score};
       if(score<bestScore){best=level;bestScore=score;}
       if(score<.93)return level;
     }
     if(best){best.generation.similarityLimited=true;return best;}
+    if(lastDownloadError)throw lastDownloadError;
     throw new Error('暂时没有适合的新委托，请稍后重试');
   }
-  return async(chapter,{avoidFingerprints=[],recentStructures=[]}={})=>{
+  return async(chapter,{avoidFingerprints=[],recentStructures=[],variationSeed=''}={})=>{
     unlockedFurnitureAt(chapter);
     const started=now();let workerMs=0,reason=WorkerClass?null:'unsupported';
     const measure=(source,fallbackMs=0)=>{try{onMeasure({chapter,source,reason,totalMs:Math.max(0,now()-started),workerMs,fallbackMs});}catch{/* Observability cannot break commissions. */}};
@@ -42,15 +46,15 @@ export function createCommissionGenerator({WorkerClass=globalThis.Worker,fetcher
         try{
           worker=new WorkerClass(new URL('./generation-worker.js',import.meta.url),{type:'module'});
           timer=setTimeout(()=>finish(new Error('timeout')),timeoutMs);
-          worker.onmessage=event=>{const level=event.data?.level;if(!level||level.chapter!==chapter||!verified(level,chapter)||avoidFingerprints.includes(level.generationFingerprint))finish(new Error('invalid-result'));else finish(null,level);};
+          worker.onmessage=event=>{const level=event.data?.level;if(!level||level.chapter!==chapter||!verified(level,chapter)||avoidFingerprints.includes(level.generationFingerprint)||(chapter>=12&&variationKey(variationSeed)&&level.generation?.variationKey!==variationKey(variationSeed)))finish(new Error('invalid-result'));else finish(null,level);};
           worker.onerror=()=>finish(new Error('worker-error'));
-          worker.postMessage({chapter,avoidFingerprints,recentStructures});
+          worker.postMessage({chapter,avoidFingerprints,recentStructures,variationSeed});
         }catch{finish(new Error('worker-unavailable'));}
       });
       workerMs=Math.max(0,now()-started);measure('worker-generated');return result;
     }catch(error){workerMs=Math.max(0,now()-started);reason=error.message;}
     const fallbackStarted=now();
-    try{const result=await fallback(chapter,avoidFingerprints,recentStructures);measure('verified-fallback',Math.max(0,now()-fallbackStarted));return result;}
+    try{const result=await fallback(chapter,avoidFingerprints,recentStructures,variationSeed);measure('verified-fallback',Math.max(0,now()-fallbackStarted));return result;}
     catch(error){measure('failed',Math.max(0,now()-fallbackStarted));throw error;}
   };
 }

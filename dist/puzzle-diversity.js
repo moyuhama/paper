@@ -1,3 +1,4 @@
+import {fallbackVariationRank} from './variation-seed.js';
 import {point,bounds} from './engine.js';
 import {levelFingerprint} from './generation-policy.js';
 
@@ -27,7 +28,7 @@ export function structuralSimilarity(a,b){
 export function repetitionScore(structure,recent=[]){
   return Math.max(0,...recent.slice(-5).map(previous=>structuralSimilarity(structure,previous)));
 }
-export function rankFallbackEntries(entries,recent=[]){
+export function rankFallbackEntries(entries,recent=[],{variationKey='',chapter=0}={}){
   const last=recent.slice(-2).map(item=>item.family);
-  return entries.map((entry,index)=>({entry,index,penalty:last.includes(entry.family)?1:0})).sort((a,b)=>a.penalty-b.penalty||a.index-b.index).map(item=>item.entry);
+  return entries.map((entry,index)=>({entry,index,rank:fallbackVariationRank(variationKey,chapter,entry.fingerprint),penalty:last.includes(entry.family)?1:0})).sort((a,b)=>a.penalty-b.penalty||(a.rank<b.rank?-1:a.rank>b.rank?1:0)||a.index-b.index).map(item=>item.entry);
 }
