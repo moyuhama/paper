@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {clone,cellKey,edgeKey,footprint,inDirection,initialLayout,evaluateRule,evaluateLayout,integrityErrors,validateLevel,paintRoom,eraseRect,placeBoundary,placeObject} from '../dist/engine.js';
-import {generateLevel,hintRoom} from '../dist/levels.js';
+import {clone,cellKey,edgeKey,footprint,inDirection,initialLayout,evaluateRule,evaluateLayout,integrityErrors,validateLevel,paintRoom,eraseRect,placeBoundary,placeObject,rotateObject} from '../dist/engine.js';
+import {generateLevel,hintRoom,createOpeningLevel,createCampaignLevel,paletteForLevel} from '../dist/levels.js';
 
 function twoRooms(){
   const level={schemaVersion:1,rulesVersion:'prototype-1',outline:[],rooms:[{id:'master',name:'主卧',color:'#ffeeaa'},{id:'guest',name:'客卧',color:'#aaffee'}],rules:[{id:'area',type:'area',roomId:'master',value:4}],fixedEdges:{'h:0:0':{kind:'window',fixed:true}}};
@@ -13,6 +13,40 @@ test('方向使用占格条带，错开行的西北目标不算正西',()=>{
   const source=['2,2','3,2'];assert.equal(inDirection(source,['0,2'],'W'),true);assert.equal(inDirection(source,['0,1'],'W'),false);assert.equal(inDirection(source,['3,0','4,0'],'N'),true);
 });
 test('旋转后的占格宽高更新',()=>assert.deepEqual(footprint({kind:'wardrobe',x:0,y:0,rotation:90}),['0,0','1,0']));
+test('第一关先只显示卫生间，随教学解锁房间、门窗和双人床',()=>{
+  const level=createOpeningLevel();assert.equal(evaluateLayout(level,level.reference).complete,true);
+  assert.deepEqual(paletteForLevel(level,0),{roomIds:['bath'],boundaries:[],objectKinds:[]});
+  assert.deepEqual(paletteForLevel(level,1).roomIds,['bath','hall']);
+  assert.deepEqual(paletteForLevel(level,2).objectKinds,[]);
+  assert.deepEqual(paletteForLevel(level,3).boundaries,['door','window','open']);
+  assert.deepEqual(paletteForLevel(level,3).objectKinds,['bed']);assert.deepEqual(paletteForLevel(level,4).objectKinds,['bed']);
+});
+test('截图回归：缺少室内门时仍能选床，缺门只影响审核',()=>{
+  const level=createOpeningLevel(),layout=clone(level.reference);delete layout.edges['h:1:3'];layout.objects=[];
+  const result=evaluateLayout(level,layout),whole=result.results.filter(r=>r.group==='global'&&!level.rules.find(rule=>rule.id===r.id).hidden);
+  assert.equal(whole.filter(r=>r.ok).length,3);assert.equal(evaluateRule(level,layout,{type:'globalCount',kind:'door',value:1}).ok,false);
+  assert.equal(paletteForLevel(level,3).objectKinds.includes('bed'),true);assert.equal(result.complete,false);
+  const placed=placeObject(level,layout,{id:'player-bed',kind:'bed',x:4,y:1,rotation:90});assert.ok(placed.layout);assert.equal(evaluateLayout(level,placed.layout).complete,false);
+});
+test('后续委托仅提供实际要求的家具，新物件随关卡增加',()=>{
+  const second=createCampaignLevel(2),fifth=createCampaignLevel(5);
+  assert.deepEqual(paletteForLevel(second).objectKinds,['bed']);assert.equal(paletteForLevel(fifth).objectKinds.includes('toilet'),true);assert.equal(paletteForLevel(second).objectKinds.includes('toilet'),false);
+  for(let n=1;n<=12;n++){const level=createCampaignLevel(n);assert.deepEqual(validateLevel(level),[]);assert.equal(evaluateLayout(level,level.reference).complete,true);}
+});
+test('已放家具四次转向后回到原方向，身份和原布局不变',()=>{
+  const{level,layout}=twoRooms();layout.objects=[{id:'wardrobe',kind:'wardrobe',x:0,y:0,rotation:0}];const original=clone(layout);let next=layout;
+  for(const angle of [90,180,270,0]){next=rotateObject(level,next,'wardrobe').layout;assert.equal(next.objects[0].rotation,angle);assert.equal(next.objects[0].id,'wardrobe');assert.equal(next.objects.length,1);}
+  assert.deepEqual(layout,original);assert.deepEqual(next,original);
+});
+test('转向造成跨房间或碰撞时拒绝，不改变原对象',()=>{
+  const{level,layout}=twoRooms();layout.objects=[{id:'wardrobe',kind:'wardrobe',x:1,y:0,rotation:0}];assert.match(rotateObject(level,layout,'wardrobe').error,/同一房间/);
+  layout.objects[0].x=0;layout.objects.push({id:'toilet',kind:'toilet',x:1,y:0,rotation:0});const original=clone(layout);assert.match(rotateObject(level,layout,'wardrobe').error,/重叠/);assert.deepEqual(layout,original);
+});
+test('家具转向改变占格后，方向条件重新按图纸方位判断',()=>{
+  const{level,layout}=twoRooms();layout.objects=[{id:'wardrobe',kind:'wardrobe',x:0,y:0,rotation:0},{id:'toilet',kind:'toilet',x:1,y:1,rotation:0}];
+  const rule={type:'direction',source:{kind:'wardrobe',roomId:'master'},target:{kind:'toilet'},direction:'E',value:1};
+  assert.equal(evaluateRule(level,layout,rule).ok,true);const next=rotateObject(level,layout,'wardrobe').layout;assert.ok(next);assert.equal(evaluateRule(level,next,rule).ok,false);
+});
 test('同类用途的主卧客卧具有独立身份，禁止直接覆盖',()=>{
   const{level,layout}=twoRooms(),result=paintRoom(level,layout,'master',{x:1,y:0,w:2,h:1});assert.match(result.error,/擦除/);assert.equal(layout.cells['2,0'],'guest');
 });

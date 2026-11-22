@@ -7,7 +7,7 @@ export const OBJECTS = {
   sink:{name:'洗碗池',w:1,h:1}, toilet:{name:'马桶',w:1,h:1},
   shower:{name:'淋浴',w:1,h:1}, wardrobe:{name:'衣柜',w:1,h:2}, bathtub:{name:'浴缸',w:1,h:2}
 };
-export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage']);
+export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage','connectionCount','walkable']);
 export const clone = value => structuredClone(value);
 export const cellKey = (x,y) => `${x},${y}`;
 export const point = key => key.split(',').map(Number);
@@ -87,6 +87,31 @@ export function reachableRooms(level,layout) {
   const queue=[...start];for(let i=0;i<queue.length;i++)for(const r of graph.get(queue[i])||[])if(!start.has(r)){start.add(r);queue.push(r);}
   return start;
 }
+// Used only when a level explicitly includes the visible walkability condition.
+// Old drafts keep their original rules and therefore their original results.
+export function walkabilityErrors(level,layout){
+  const errors=[],outline=new Set(level.outline),occupied=new Set(layout.objects.flatMap(footprint));
+  const free=new Set(Object.keys(layout.cells).filter(c=>!occupied.has(c))),starts=[];
+  for(const [key,item]of Object.entries(layout.edges))if(item.kind==='door'){
+    const inside=edgeCells(key).filter(c=>outline.has(c));
+    if(inside.some(c=>!free.has(c)))errors.push('门口不能被家具或未绘制区域阻挡');
+    if(inside.length===1&&free.has(inside[0]))starts.push(inside[0]);
+  }
+  if(!starts.length)return ['需要可通行的入户门'];
+  const seen=new Set(starts),queue=[...seen];
+  for(let i=0;i<queue.length;i++){
+    const c=queue[i],[x,y]=point(c);
+    for(const n of neighbors(c))if(free.has(n)&&!seen.has(n)){
+      const [nx,ny]=point(n),key=nx===x?edgeKey('h',x,Math.max(y,ny)):edgeKey('v',Math.max(x,nx),y);
+      if(layout.cells[c]!==layout.cells[n]&&!['door','open'].includes(layout.edges[key]?.kind))continue;
+      seen.add(n);queue.push(n);
+    }
+  }
+  if(seen.size!==free.size)errors.push('家具不能切断室内通路');
+  for(const room of level.rooms)if(![...seen].some(c=>layout.cells[c]===room.id))errors.push(`${room.name}没有可通行空间`);
+  for(const object of layout.objects)if(!footprint(object).some(c=>neighbors(c).some(n=>seen.has(n)&&layout.cells[n]===objectRoom(layout,object))))errors.push(`${OBJECTS[object.kind].name}需要可到达的使用位置`);
+  return [...new Set(errors)];
+}
 export function evaluateRule(level,layout,rule) {
   let actual,ok=false;
   if(rule.roomId&&!Object.values(layout.cells).includes(rule.roomId))return {id:rule.id,group:rule.group||rule.roomId,ok:false,actual:'未绘制房间',text:rule.text,type:rule.type};
@@ -102,6 +127,8 @@ export function evaluateRule(level,layout,rule) {
     }
     case'fullOpen':{const edges=sharedEdges(level,layout,rule.roomId,rule.targetRoomId,rule.side);actual=edges.filter(k=>layout.edges[k]?.kind==='open').length;ok=edges.length>0&&actual===edges.length;break;}
     case'openLength':actual=sharedEdges(level,layout,rule.roomId,rule.targetRoomId).filter(k=>layout.edges[k]?.kind==='open').length;ok=compare(actual,rule);break;
+    case'connectionCount':actual=sharedEdges(level,layout,rule.roomId,rule.targetRoomId).filter(key=>boundaryKind(level,layout,key)===rule.kind).length;ok=compare(actual,rule);break;
+    case'walkable':actual=walkabilityErrors(level,layout).length;ok=actual===0;break;
     case'reachable':actual=reachableRooms(level,layout).size;ok=actual===level.rooms.length;break;
     case'coverage':actual=level.outline.filter(c=>layout.cells[c]).length;ok=actual===level.outline.length;break;
     default:actual='不支持的规则';
@@ -170,12 +197,13 @@ export function validateLevel(level) {
     for(const id of [rule.roomId,rule.targetRoomId,rule.source?.roomId,rule.target?.roomId])if(id&&!ids.has(id))errors.push(`条件${rule.id}引用未知房间：${id}`);
     if(rule.type==='direction'&&(!rule.source?.kind||!rule.target?.kind||!['N','S','W','E'].includes(rule.direction)))errors.push(`条件${rule.id}方向参数无效`);
     for(const selector of [rule.source,rule.target])if(selector&&!OBJECTS[selector.kind]&&!['window','door','entry'].includes(selector.kind))errors.push(`条件${rule.id}引用未知物件`);
-    if(['area','objectCount','boundaryCount','globalCount','openLength'].includes(rule.type)&&(!Number.isFinite(rule.value)||rule.value<0))errors.push(`条件${rule.id}数量无效`);
+    if(['area','objectCount','boundaryCount','globalCount','openLength','connectionCount'].includes(rule.type)&&(!Number.isFinite(rule.value)||rule.value<0))errors.push(`条件${rule.id}数量无效`);
     if(rule.type==='direction'&&!rule.forbidden&&(!Number.isFinite(rule.value)||rule.value<0))errors.push(`条件${rule.id}方向数量无效`);
     if(rule.type==='objectCount'&&!OBJECTS[rule.kind])errors.push(`条件${rule.id}引用未知家具`);
+    if(rule.type==='connectionCount'&&!['door','open'].includes(rule.kind))errors.push(`条件${rule.id}连接类型无效`);
     if(['boundaryCount','globalCount'].includes(rule.type)&&!['window','door','entry','open'].includes(rule.kind))errors.push(`条件${rule.id}边界类型无效`);
-    if(['area','objectCount','boundaryCount','adjacent','fullOpen','openLength'].includes(rule.type)&&!rule.roomId)errors.push(`条件${rule.id}缺少房间`);
-    if(['adjacent','fullOpen','openLength'].includes(rule.type)&&(!rule.targetRoomId||rule.targetRoomId===rule.roomId))errors.push(`条件${rule.id}目标房间无效`);
+    if(['area','objectCount','boundaryCount','adjacent','fullOpen','openLength','connectionCount'].includes(rule.type)&&!rule.roomId)errors.push(`条件${rule.id}缺少房间`);
+    if(['adjacent','fullOpen','openLength','connectionCount'].includes(rule.type)&&(!rule.targetRoomId||rule.targetRoomId===rule.roomId))errors.push(`条件${rule.id}目标房间无效`);
   }
   if(!level.rules?.length)errors.push('关卡须包含条件');
   return [...new Set(errors)];
@@ -216,4 +244,10 @@ export function placeObject(level,layout,object) {
   if(!objectRoom(next,object))return {error:'家具须完整放入同一房间'};
   const cells=new Set(footprint(object));if(next.objects.some(o=>o.id!==object.id&&footprint(o).some(c=>cells.has(c))))return {error:'家具不能重叠'};
   return {layout:next};
+}
+export function rotateObject(level,layout,id,quarterTurns=1){
+  const object=layout.objects.find(o=>o.id===id);
+  if(!object)return {error:'请先选中一件家具'};
+  const rotation=(((object.rotation||0)+quarterTurns*90)%360+360)%360;
+  return placeObject(level,layout,{...object,rotation});
 }
