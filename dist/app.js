@@ -214,12 +214,12 @@ function render(){
   if(requirementsReset)requirementsScroll=0;else if(requirements&&!requirements.hidden)requirementsScroll=requirements.scrollTop;
   const scroll=requirementsScroll,palette=$('.tool-options'),paletteScroll=palette?.dataset.section===(tool==='hand'?'none':tool==='eraser'?'erase':'all')?palette.scrollLeft:0;
   const inspect=level.rules.find(r=>r.id===inspectedRule),coach=phone?'':guideHTML();
-  $('#app').innerHTML=`<div class="studio game-screen ${mobilePaletteOpen?'palette-open':''}"><main class="desk"><div class="desk-content">${phoneDockHTML(check)}<div class="paper"><section class="drawing-area" aria-label="绘图工作台"><div class="paper-top"><div class="paper-actions"><button class="icon-button mobile-only" data-action="phone" aria-label="任务手机" title="委托与交图">${icon('phone')}</button><button class="icon-button mobile-only" data-action="game-menu" aria-label="游戏菜单" title="游戏菜单">${icon('menu')}</button><button class="icon-button" data-action="menu-settings" aria-label="设置" title="设置">${icon('settings')}</button><button class="help-icon" data-action="tutorial" aria-label="操作提示" title="操作提示">?</button><button class="icon-button" data-action="undo" title="撤销（⌘Z）" ${undoStack.length?'':'disabled'} aria-label="撤销">${icon('undo')}</button><button class="icon-button" data-action="redo" title="重做（⌘⇧Z）" ${redoStack.length?'':'disabled'} aria-label="重做">${icon('redo')}</button></div></div><div class="canvas-wrap">${boardHTML()}<button class="requirements-toggle" data-action="toggle-requirements" aria-label="${showRequirements?'隐藏':'显示'}要求列表" aria-expanded="${showRequirements}" aria-controls="requirements-list" title="${showRequirements?'隐藏':'显示'}要求列表">${icon(showRequirements?'eye':'eyeClosed')}<span>${esc(level.chapter||taskIndex)}</span></button><aside id="requirements-list" class="requirements" aria-label="委托要求" ${showRequirements?'':'hidden'}><div class="requirements-heading"><h1>${esc(level.title)}</h1></div>${groupsHTML(check)}</aside>${coach?`<div class="tutorial-anchor" aria-live="polite" aria-atomic="true">${coach}</div>`:''}${inspect?`<div class="range-explanation"><strong>${esc(inspect.text)}</strong><span>红色条带跨越房间，目标任一格进入范围即计入。</span><button data-action="clear-range" aria-label="关闭方位范围">${icon('close')}</button></div>`:''}<div class="compass" aria-hidden="true"><span>北</span><div>西 <b>✥</b> 东</div><span>南</span></div><div class="scale-mark"><i></i><span>1m</span></div><div class="zoom-controls"><button data-action="zoom-out" aria-label="缩小">−</button><button data-action="zoom-reset" title="重置视图">${Math.round(zoom*100)}%</button><button data-action="zoom-in" aria-label="放大">＋</button></div>${portraitHintHTML(!!coach)}</div></section></div></div><div class="desk-bottom"><button class="return-menu" data-action="main-menu">主菜单</button>${toolbarHTML()}<button class="phone-launch ${check.complete?'ready':''}" data-action="phone" aria-label="任务手机" title="查看委托、求助和提交图纸">${icon('phone')}<span><strong>${check.complete?'交图':'手机'}</strong></span></button></div></main>${phoneHTML()}${modalHTML()}</div>`;
+  $('#app').innerHTML=`<div class="studio game-screen ${mobilePaletteOpen?'palette-open':''}"><main class="desk"><div class="desk-content">${phoneDockHTML(check)}<div class="paper"><section class="drawing-area" aria-label="绘图工作台"><div class="paper-top"><div class="paper-actions"><button class="icon-button mobile-only" data-action="phone" aria-label="任务手机" title="委托与交图">${icon('phone')}</button><button class="icon-button mobile-only" data-action="game-menu" aria-label="游戏菜单" title="游戏菜单">${icon('menu')}</button><button class="icon-button" data-action="menu-settings" aria-label="设置" title="设置">${icon('settings')}</button><button class="help-icon" data-action="tutorial" aria-label="操作提示" title="操作提示">?</button><button class="icon-button" data-action="undo" title="撤销（⌘Z）" ${undoStack.length?'':'disabled'} aria-label="撤销">${icon('undo')}</button><button class="icon-button" data-action="redo" title="重做（⌘⇧Z）" ${redoStack.length?'':'disabled'} aria-label="重做">${icon('redo')}</button></div></div><div class="canvas-wrap">${boardHTML()}<button class="requirements-toggle" data-action="toggle-requirements" aria-label="${showRequirements?'隐藏':'显示'}要求列表" aria-expanded="${showRequirements}" aria-controls="requirements-list" title="${showRequirements?'隐藏':'显示'}要求列表">${icon(showRequirements?'eye':'eyeClosed')}<span>${esc(level.chapter||taskIndex)}</span></button><aside id="requirements-list" class="requirements" aria-label="委托要求" ${showRequirements?'':'hidden'}><div class="requirements-heading"><h1>${esc(level.title)}</h1></div>${groupsHTML(check)}</aside><div class="requirements-scrollbar" role="scrollbar" aria-label="滚动委托要求" aria-controls="requirements-list" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" tabindex="0" hidden><span class="requirements-thumb"></span></div>${coach?`<div class="tutorial-anchor" aria-live="polite" aria-atomic="true">${coach}</div>`:''}${inspect?`<div class="range-explanation"><strong>${esc(inspect.text)}</strong><span>红色条带跨越房间，目标任一格进入范围即计入。</span><button data-action="clear-range" aria-label="关闭方位范围">${icon('close')}</button></div>`:''}<div class="compass" aria-hidden="true"><span>北</span><div>西 <b>✥</b> 东</div><span>南</span></div><div class="scale-mark"><i></i><span>1m</span></div><div class="zoom-controls"><button data-action="zoom-out" aria-label="缩小">−</button><button data-action="zoom-reset" title="重置视图">${Math.round(zoom*100)}%</button><button data-action="zoom-in" aria-label="放大">＋</button></div>${portraitHintHTML(!!coach)}</div></section></div></div><div class="desk-bottom"><button class="return-menu" data-action="main-menu">主菜单</button>${toolbarHTML()}<button class="phone-launch ${check.complete?'ready':''}" data-action="phone" aria-label="任务手机" title="查看委托、求助和提交图纸">${icon('phone')}<span><strong>${check.complete?'交图':'手机'}</strong></span></button></div></main>${phoneHTML()}${modalHTML()}</div>`;
   $('.requirements').scrollTop=scroll;requirementsReset=false;$('.tool-options').scrollLeft=paletteScroll;
   const paletteOverflow=$('.tool-options').scrollWidth>$('.palette-row').clientWidth-6;
   for(const button of document.querySelectorAll('.palette-scroll'))button.hidden=!paletteOverflow;
   if(paletteFocus){$(paletteFocus)?.scrollIntoView({block:'nearest',inline:'nearest'});paletteFocus=null;}
-  bindBoard();
+  bindBoard();bindRequirementsScroll();
   syncView();cameraResize.disconnect();cameraResize.observe($('#blueprint'));
   if(tool==='object'&&hoverPoint)showPlacementPreview(hoverPoint);
   if(phone){const chat=$('.chat');chat.scrollTop=chatScroll??chat.scrollHeight;chatScroll=null;}
@@ -287,7 +287,7 @@ let cameraFrame=0;
 const cameraResize=new ResizeObserver(()=>syncView());
 window.matchMedia('(orientation: portrait)').addEventListener('change',()=>{if(window.innerWidth<=1100){drag=null;viewNeedsFit=true;syncView();}});
 function syncView(){
-  cameraFrame=0;const svg=$('#blueprint');if(!svg)return;
+  cameraFrame=0;syncRequirementsScroll();const svg=$('#blueprint');if(!svg)return;
   const r=svg.getBoundingClientRect();if(!r.width||!r.height)return;
   const b=bounds(level.outline);
   if(viewNeedsFit){if(window.matchMedia('(max-width:600px), (max-width:1100px) and (max-height:600px)').matches)zoom=clampZoom(Math.min(1,(r.width-36)/(b.w*GRID_PIXELS),(r.height-64)/(b.h*GRID_PIXELS)));viewNeedsFit=false;}
@@ -359,9 +359,39 @@ function finish(event){
   else if(current.mode==='hand'){pan.x+=p.x-current.start.x;pan.y+=p.y-current.start.y;render();return;}
   if(result?.error){gameAudio.play('error');toast(result.error);render();}else if(result?.layout)commit(result.layout,current.mode);else render();
 }
+function syncRequirementsScroll(){
+  const list=$('.requirements'),track=$('.requirements-scrollbar');if(!list||!track)return;
+  const maximum=Math.max(0,list.scrollHeight-list.clientHeight);
+  track.hidden=list.hidden||maximum<=0;
+  if(track.hidden)return;
+  const height=list.clientHeight,thumbHeight=Math.min(height,Math.max(32,height*height/list.scrollHeight));
+  track.style.left=(list.offsetLeft-4)+'px';track.style.top=list.offsetTop+'px';track.style.height=height+'px';
+  const thumb=track.firstElementChild;
+  thumb.style.height=thumbHeight+'px';thumb.style.transform=`translateY(${list.scrollTop/maximum*(height-thumbHeight)}px)`;
+  track.setAttribute('aria-valuemax',Math.round(maximum));track.setAttribute('aria-valuenow',Math.round(list.scrollTop));
+}
+function bindRequirementsScroll(){
+  const list=$('.requirements'),track=$('.requirements-scrollbar');let moving=null;
+  list.addEventListener('scroll',syncRequirementsScroll,{passive:true});
+  track.addEventListener('pointerdown',event=>{
+    if(event.button!==0)return;
+    event.preventDefault();event.stopPropagation();track.focus();
+    const thumb=track.firstElementChild,r=track.getBoundingClientRect(),height=thumb.getBoundingClientRect().height;
+    const maximum=list.scrollHeight-list.clientHeight,travel=r.height-height;
+    if(travel<=0)return;
+    if(event.target!==thumb)list.scrollTop=Math.max(0,Math.min(maximum,(event.clientY-r.top-height/2)/travel*maximum));
+    moving={id:event.pointerId,y:event.clientY,scroll:list.scrollTop,maximum,travel};track.setPointerCapture(event.pointerId);syncRequirementsScroll();
+  });
+  track.addEventListener('pointermove',event=>{if(moving?.id!==event.pointerId)return;event.preventDefault();event.stopPropagation();list.scrollTop=moving.scroll+(event.clientY-moving.y)/moving.travel*moving.maximum;syncRequirementsScroll();});
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])track.addEventListener(type,event=>{if(moving?.id===event.pointerId){moving=null;event.stopPropagation();}});
+  track.addEventListener('keydown',event=>{
+    const steps={ArrowUp:-40,ArrowDown:40,PageUp:-list.clientHeight,PageDown:list.clientHeight,Home:-list.scrollHeight,End:list.scrollHeight};
+    if(!(event.key in steps))return;event.preventDefault();event.stopPropagation();list.scrollTop+=steps[event.key];syncRequirementsScroll();
+  });
+}
 function bindBoard(){
   const svg=$('#blueprint'),surface=svg.closest('.canvas-wrap'),touches=new Map();let pinch=null,waitForLift=false;
-  const isInterface=target=>!!target.closest('.requirements,button,.tutorial-anchor,.range-explanation,.portrait-hint');
+  const isInterface=target=>!!target.closest('.requirements,.requirements-scrollbar,button,.tutorial-anchor,.range-explanation,.portrait-hint');
   const touchPoints=()=>[...touches.values()].slice(0,2);
   surface.addEventListener('contextmenu',event=>{if(!isInterface(event.target))event.preventDefault();});
   surface.addEventListener('pointerdown',event=>{
@@ -413,7 +443,7 @@ function bindBoard(){
     if(event.target.closest('.tutorial-anchor,.range-explanation,.portrait-hint,.zoom-controls,.requirements-toggle'))return;
     const list=$('.requirements'),r=list?.getBoundingClientRect();
     // List scrolling wins inside its rectangle even when the plan is above it.
-    if(list&&!list.hidden&&r&&event.clientX>=r.left&&event.clientX<=r.right&&event.clientY>=r.top&&event.clientY<=r.bottom){
+    if(list&&!list.hidden&&r&&(event.target.closest('.requirements-scrollbar')||event.clientX>=r.left&&event.clientX<=r.right&&event.clientY>=r.top&&event.clientY<=r.bottom)){
       event.preventDefault();
       const unit=event.deltaMode===1?20:event.deltaMode===2?list.clientHeight:1;
       list.scrollTop+=event.deltaY*unit;
