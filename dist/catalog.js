@@ -1,4 +1,4 @@
-export const CONTENT_VERSION='residential-2';
+export const CONTENT_VERSION='residential-3';
 const definitions=[
   ['bed','双人床',2,2,1],['singleBed','单人床',1,2,9],
   ['sofa','双人沙发',2,1,3],['chair','单人沙发',1,1,4],
@@ -10,7 +10,7 @@ const definitions=[
   ['basin','洗手台',1,1,24],['washer','洗衣机',1,1,26],['shoeCabinet','鞋柜',1,2,28],
   ['workbench','工作台',3,1,30]
 ];
-export const OBJECTS=Object.freeze(Object.fromEntries(definitions.map(([id,name,w,h,chapter])=>[id,Object.freeze({name,w,h,chapter})])));
+export const OBJECTS=Object.freeze(Object.fromEntries(definitions.map(([id,name,w,h,chapter])=>[id,Object.freeze({name,w,h,chapter,...(['sofa','chair','desk','workbench','fridge','washer','wardrobe','bookcase'].includes(id)?{front:'S'}:{})})])));
 export const ROOM_CATALOG={
   living:{name:'客厅',color:'#edc8c3',objects:['sofa','chair']},bedroom:{name:'卧室',color:'#ede5b2',objects:['bed']},
   bath:{name:'卫生间',color:'#c9c9e8',objects:['shower','toilet'],advancedObjects:['bathtub']},kitchen:{name:'厨房',color:'#bcdccd',objects:['stove','sink']},

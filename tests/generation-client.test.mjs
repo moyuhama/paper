@@ -59,3 +59,18 @@ test('无Worker的后期回退也优先选不同结构，近期信息传给Worke
   const generate=createCommissionGenerator({WorkerClass:Worker,fetcher});
   await generate(101,{recentStructures});assert.deepEqual(request.recentStructures,recentStructures);
 });
+
+test('新机制引入关的回退保留多件、量词、正面和距离，不接受缺机制的Worker题',async()=>{
+  const generate=createCommissionGenerator({WorkerClass:null,fetcher});
+  for(const chapter of [38,40,42,44]){
+    const level=await generate(chapter);assert.ok(level.rules.some(r=>r.type==='objectCount'&&r.value>1));
+    if(chapter===40)assert.ok(level.rules.some(r=>r.quantifier==='any'));
+    if(chapter>=42)assert.ok(level.rules.some(r=>r.type==='useSpace'));
+    if(chapter>=44)assert.ok(level.rules.some(r=>r.type==='distance'));
+    assert.ok(level.progression.newMechanics.length);
+  }
+  const old=createCampaignLevel(37);old.chapter=44;
+  class WrongWorker{postMessage(){queueMicrotask(()=>this.onmessage({data:{level:old}}));}terminate(){}}
+  const rescued=await createCommissionGenerator({WorkerClass:WrongWorker,fetcher})(44);
+  assert.equal(rescued.generation.source,'verified-fallback');assert.ok(rescued.rules.some(r=>r.type==='distance'));
+});

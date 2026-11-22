@@ -251,3 +251,5 @@
 .content-coach .coach-close{width:44px;height:44px;display:grid;place-items:center;right:0;top:0}
 .content-coach .coach-kicker,.content-coach h2{padding-right:24px}
 .content-coach .rotate-demo svg{width:80px;height:52px}
+
+.range-explanation{padding-right:48px}.range-explanation>button{width:44px;height:44px;display:grid;place-items:center;right:0;top:0}

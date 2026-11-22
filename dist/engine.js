@@ -4,7 +4,7 @@ export {roomArea} from './geometry.js';
 export const ENGINE_VERSION = 'prototype-1';
 import {OBJECTS} from './catalog.js';
 export {OBJECTS} from './catalog.js';
-export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage','connectionCount','walkable']);
+export const RULE_TYPES = new Set(['area','objectCount','boundaryCount','globalCount','adjacent','direction','fullOpen','openLength','reachable','coverage','connectionCount','walkable','useSpace','distance']);
 export const clone = value => structuredClone(value);
 export const cellKey = (x,y) => `${x},${y}`;
 export const point = key => key.split(',').map(Number);
@@ -78,11 +78,12 @@ export function roomEdges(level,layout,roomId,side) {
 export function sharedEdges(level,layout,a,b,side) {
   return roomEdges(level,layout,a,side).filter(key=>edgeInfo(level,layout,key).rooms.includes(b));
 }
+export function selectedObjects(layout,selector){return layout.objects.filter(o=>(!selector.objectId||o.id===selector.objectId)&&o.kind===selector.kind&&(!selector.roomId||objectRoom(layout,o)===selector.roomId));}
 function entities(level,layout,selector) {
   if(selector.kind==='window'||selector.kind==='door'||selector.kind==='entry'){
     return Object.keys(layout.edges).filter(key=>boundaryKind(level,layout,key)===selector.kind).filter(key=>!selector.roomId||edgeInfo(level,layout,key).rooms.includes(selector.roomId)).map(key=>{const info=edgeInfo(level,layout,key);return {id:key,cells:info.cells.filter((c,i)=>info.inside[i])};});
   }
-  return layout.objects.filter(o=>(!selector.objectId||o.id===selector.objectId)&&o.kind===selector.kind&&(!selector.roomId||objectRoom(layout,o)===selector.roomId)).map(o=>({id:o.id,cells:footprint(o)}));
+  return selectedObjects(layout,selector).map(o=>({id:o.id,cells:footprint(o)}));
 }
 export function inDirection(sourceCells,targetCells,direction) {
   if(!sourceCells.length||!targetCells.length)return false;
@@ -106,29 +107,65 @@ export function reachableRooms(level,layout) {
 }
 // Used only when a level explicitly includes the visible walkability condition.
 // Old drafts keep their original rules and therefore their original results.
-export function walkabilityErrors(level,layout){
-  const errors=[],outline=new Set(level.outline),occupied=new Set(layout.objects.flatMap(footprint));
-  const free=new Set(Object.keys(layout.cells).filter(c=>!occupied.has(c))),starts=[];
+export function walkableFloor(level,layout){
+  const occupied=new Set(layout.objects.flatMap(footprint)),free=new Set(Object.keys(layout.cells).filter(c=>!occupied.has(c))),starts=[];
+  let blockedDoors=false;
   for(const [key,item]of Object.entries(layout.edges))if(item.kind==='door'){
     const info=edgeInfo(level,layout,key),inside=info.cells.filter((c,i)=>info.inside[i]);
-    if(inside.some(c=>!free.has(c)))errors.push('门口不能被家具或未绘制区域阻挡');
-    if(edgeInfo(level,layout,key).outer&&free.has(inside[0]))starts.push(inside[0]);
+    if(inside.some(c=>!free.has(c)))blockedDoors=true;
+    if(info.outer&&free.has(inside[0]))starts.push(inside[0]);
   }
-  if(!starts.length)return ['需要可通行的入户门'];
   const seen=new Set(starts),queue=[...seen];
   for(let i=0;i<queue.length;i++){
     const c=queue[i],[x,y]=point(c);
     for(const n of neighbors(c))if(free.has(n)&&!seen.has(n)){
-      const [nx,ny]=point(n),key=nx===x?edgeKey('h',x,Math.max(y,ny)):edgeKey('v',Math.max(x,nx),y);
+      const[nx,ny]=point(n),key=nx===x?edgeKey('h',x,Math.max(y,ny)):edgeKey('v',Math.max(x,nx),y);
       if(geometryFor(level).wallSet.has(key)||!edgeInfo(level,layout,key).inside.every(Boolean))continue;
       if(layout.cells[c]!==layout.cells[n]&&!['door','open'].includes(layout.edges[key]?.kind))continue;
       seen.add(n);queue.push(n);
     }
   }
+  return {free,seen,blockedDoors,hasEntry:starts.length>0};
+}
+export function walkabilityErrors(level,layout){
+  const {free,seen,blockedDoors,hasEntry}=walkableFloor(level,layout),errors=[];
+  if(!hasEntry)return ['需要可通行的入户门'];
+  if(blockedDoors)errors.push('门口不能被家具或未绘制区域阻挡');
   if(seen.size!==free.size)errors.push('家具不能切断室内通路');
   for(const room of level.rooms)if(![...seen].some(c=>layout.cells[c]===room.id))errors.push(`${room.name}没有可通行空间`);
   for(const object of layout.objects)if(!footprint(object).some(c=>neighbors(c).some(n=>seen.has(n)&&layout.cells[n]===objectRoom(layout,object))))errors.push(`${OBJECTS[object.kind].name}需要可到达的使用位置`);
   return [...new Set(errors)];
+}
+export function frontDirection(object){
+  const directions=['S','W','N','E'],base=directions.indexOf(OBJECTS[object.kind]?.front);
+  return base<0?null:directions[(base+(object.rotation||0)/90)%4];
+}
+export function frontCells(object,depth=1){
+  const b=bounds(footprint(object)),direction=frontDirection(object),cells=[];
+  if(!direction)return cells;
+  for(let offset=1;offset<=depth;offset++){
+    if(direction==='N'||direction==='S')for(let x=b.x;x<b.x+b.w;x++)cells.push(cellKey(x,direction==='N'?b.y-offset:b.y+b.h-1+offset));
+    else for(let y=b.y;y<b.y+b.h;y++)cells.push(cellKey(direction==='W'?b.x-offset:b.x+b.w-1+offset,y));
+  }
+  return cells;
+}
+export function useSpaceResults(level,layout,selector,depth=1){
+  const {seen}=walkableFloor(level,layout);
+  return selectedObjects(layout,selector).map(object=>{
+    const room=objectRoom(layout,object),cells=frontCells(object,depth),area=new Set([...footprint(object),...cells]);
+    const wall=(level.fixedWalls||[]).some(key=>edgeCells(key).every(c=>area.has(c)));
+    return {id:object.id,cells,ok:!!room&&!!cells.length&&!wall&&cells.every(c=>layout.cells[c]===room&&!level.geometry?.cellPolygons?.[c]&&seen.has(c))};
+  });
+}
+// Exact squared straight-line distance between rectangular furniture edges.
+export function objectDistanceSquared(a,b){
+  const x=bounds(footprint(a)),y=bounds(footprint(b));
+  const dx=Math.max(0,x.x-y.x-y.w,y.x-x.x-x.w),dy=Math.max(0,x.y-y.y-y.h,y.y-x.y-x.h);
+  return dx*dx+dy*dy;
+}
+export function furnitureDistances(layout,source,target){
+  const targets=selectedObjects(layout,target);
+  return selectedObjects(layout,source).map(a=>{const values=targets.filter(b=>b.id!==a.id).map(b=>objectDistanceSquared(a,b));return values.length?Math.min(...values):null;});
 }
 export function evaluateRule(level,layout,rule) {
   let actual,ok=false;
@@ -146,6 +183,8 @@ export function evaluateRule(level,layout,rule) {
     case'fullOpen':{const edges=sharedEdges(level,layout,rule.roomId,rule.targetRoomId,rule.side);actual=edges.filter(k=>layout.edges[k]?.kind==='open').length;ok=edges.length>0&&actual===edges.length;break;}
     case'openLength':actual=sharedEdges(level,layout,rule.roomId,rule.targetRoomId).filter(k=>layout.edges[k]?.kind==='open').length;ok=compare(actual,rule);break;
     case'connectionCount':actual=sharedEdges(level,layout,rule.roomId,rule.targetRoomId).filter(key=>boundaryKind(level,layout,key)===rule.kind).length;ok=compare(actual,rule);break;
+    case'useSpace':{const results=useSpaceResults(level,layout,rule.source,rule.depth);actual=results.length?results.map(r=>r.ok?'可使用':'正面受阻').join(' / '):'缺少参考家具';ok=results.length>0&&results[rule.quantifier==='any'?'some':'every'](r=>r.ok);break;}
+    case'distance':{const values=furnitureDistances(layout,rule.source,rule.target);actual=values.length?values.map(n=>n===null?'缺少目标家具':Math.round(Math.sqrt(n)*100)/100+'m').join(' / '):'缺少参考家具';ok=values.length>0&&values[rule.quantifier==='any'?'some':'every'](n=>n!==null&&compare(n,{...rule,value:rule.value**2}));break;}
     case'walkable':actual=walkabilityErrors(level,layout).length;ok=actual===0;break;
     case'reachable':actual=reachableRooms(level,layout).size;ok=actual===level.rooms.length;break;
     case'coverage':actual=level.outline.filter(c=>layout.cells[c]).length;ok=actual===level.outline.length;break;
@@ -224,6 +263,10 @@ export function validateLevel(level) {
     for(const selector of [rule.source,rule.target])if(selector&&!OBJECTS[selector.kind]&&!['window','door','entry'].includes(selector.kind))errors.push(`条件${rule.id}引用未知物件`);
     if(['area','objectCount','boundaryCount','globalCount','openLength','connectionCount'].includes(rule.type)&&(!Number.isFinite(rule.value)||rule.value<0))errors.push(`条件${rule.id}数量无效`);
     if(rule.type==='direction'&&!rule.forbidden&&(!Number.isFinite(rule.value)||rule.value<0))errors.push(`条件${rule.id}方向数量无效`);
+    if(['useSpace','distance'].includes(rule.type)&&(!rule.source||!OBJECTS[rule.source.kind]))errors.push(`条件${rule.id}需要家具来源`);
+    if(rule.type==='useSpace'&&(!OBJECTS[rule.source?.kind]?.front||!Number.isInteger(rule.depth)||rule.depth<1||rule.depth>3))errors.push(`条件${rule.id}正面或使用深度无效`);
+    if(rule.type==='distance'&&(!rule.target||!OBJECTS[rule.target.kind]||!Number.isFinite(rule.value)||rule.value<0||!['lte','gte'].includes(rule.op)))errors.push(`条件${rule.id}距离参数无效`);
+    for(const selector of [rule.source,rule.target])if(selector?.objectId!==undefined&&(typeof selector.objectId!=='string'||!selector.objectId.length))errors.push(`条件${rule.id}实例标识无效`);
     if(rule.type==='objectCount'&&!OBJECTS[rule.kind])errors.push(`条件${rule.id}引用未知家具`);
     if(rule.type==='connectionCount'&&!['door','open'].includes(rule.kind))errors.push(`条件${rule.id}连接类型无效`);
     if(['boundaryCount','globalCount'].includes(rule.type)&&!['window','door','entry','open'].includes(rule.kind))errors.push(`条件${rule.id}边界类型无效`);
