@@ -6,7 +6,7 @@
 
 ## 在线试玩
 
-[打开游戏](https://moyuhama.github.io/paper-floorplan-studio/)
+[打开游戏](https://moyuhama.github.io/paper/)
 
 支持电脑和手机浏览器，手机推荐横屏。存档保存在当前浏览器中；不同设备、浏览器和网址之间不会自动同步。
 
