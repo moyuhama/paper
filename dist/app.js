@@ -24,7 +24,7 @@ const $=selector=>document.querySelector(selector),esc=value=>String(value).repl
 const STORE='paper-studio:v1';
 const gameEntry=createGameEntry($('#app'));
 let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}');}catch{}
-let level,layout,undoStack=[],redoStack=[],tool='room',selectedRoom,selectedObject='bed',rotation=0,eraseFilter='all',hints=3,submissions=[],history=saved.history||[],phone=false,review=null,collapsed=new Set(),groupCompletion=new Map(),drag=null,pan={x:0,y:0},zoom=1,help=false,modal=null;
+let level,layout,undoStack=[],redoStack=[],tool='room',selectedRoom,selectedObject='bed',rotation=0,eraseFilter='all',hints=3,submissions=[],history=saved.history||[],phone=false,review=null,collapsed=new Set(),requirementsWereComplete=null,drag=null,pan={x:0,y:0},zoom=1,help=false,modal=null;
 let campaignId=saved.campaignId||'legacy',conversations=saved.conversations||[],viewingCommission=null,chatScroll=null,mobilePaletteOpen=false;
 let taskIndex=saved.taskIndex||1,tutorialStage=saved.tutorialStage||0;
 let pendingTag=null;
@@ -65,7 +65,7 @@ function archiveCurrentConversation(){conversations=archiveConversation(conversa
 function pastCommissions(){return completedCommissions(history,conversations,{campaignId,currentLevelId:level.id});}
 function loadGameLevel(next,{archive=true}={}){
   if(archive)archiveCurrentConversation();mobilePaletteOpen=false;
-  level=next;pendingTag=null;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();groupCompletion=new Map();requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;playtest.begin({campaignId,level,fromStart:true});playtestReady=true;persist();render();
+  level=next;pendingTag=null;contentLessons=lessonsForLevel(level,{seen:seenLessons});lessonIndex=0;manualGuide=false;guideStep=guideDone?null:0;layout=initialLayout(level);hints=3;attempt=newAttempt();submissions=[];review=null;selectedRoom=level.rooms[0].id;selectedId=null;hoverPoint=null;inspectedRule=null;undoStack=[];redoStack=[];collapsed=new Set();requirementsWereComplete=null;requirementsReset=true;showRequirements=true;viewNeedsFit=true;pan={x:0,y:0};zoom=1;tool=lastDrawTool='room';screen='game';phone=true;modal=null;taskIndex=level.chapter||taskIndex+1;playtest.begin({campaignId,level,fromStart:true});playtestReady=true;persist();render();
 }
 function advanceOpening(next){
   const before=tutorialStage;
@@ -230,7 +230,7 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.4</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.5</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -248,13 +248,10 @@ function render(){
   if(screen==='menu'){$('#app').innerHTML=menuHTML()+modalHTML();return;}
   if(selectedId&&!selectedFurniture())selectedId=null;
   const check=evaluateLayout(level,layout);
-  const hiddenRules=new Set(level.rules.filter(rule=>rule.hidden).map(rule=>rule.id));
-  for(const id of ['global',...level.rooms.map(room=>room.id)]){
-    const items=check.results.filter(result=>result.group===id&&!hiddenRules.has(result.id));
-    const done=items.length>0&&items.every(result=>result.ok),previous=groupCompletion.get(id);
-    if(done&&previous!==true)collapsed.add(id);
-    else if(!done&&previous===true)collapsed.delete(id);
-    groupCompletion.set(id,done);
+  if(check.complete!==requirementsWereComplete){
+    if(check.complete)collapsed=new Set(['global',...level.rooms.map(room=>room.id)]);
+    else if(requirementsWereComplete===true)collapsed.clear();
+    requirementsWereComplete=check.complete;
   }
   const requirements=$('.requirements');
   if(requirementsReset)requirementsScroll=0;else if(requirements&&!requirements.hidden)requirementsScroll=requirements.scrollTop;
