@@ -1,3 +1,4 @@
+import {createGameEntry} from './game-entry.js';
 import {availableTags,placementIdentity,assignFurnitureTag,instanceName} from './instances.js';
 import {frontAnnotationSVG,instanceBadgeSVG,usagePreviewSVG,spatialRuleSVG,ruleExplanation} from './rule-visuals.js';
 import {MECHANIC_NAMES} from './mechanics.js';
@@ -21,6 +22,7 @@ import {submissionStatus,submitDesign} from './submission.js';
 
 const $=selector=>document.querySelector(selector),esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STORE='paper-studio:v1';
+const gameEntry=createGameEntry($('#app'));
 let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}');}catch{}
 let level,layout,undoStack=[],redoStack=[],tool='room',selectedRoom,selectedObject='bed',rotation=0,eraseFilter='all',hints=3,submissions=[],history=saved.history||[],phone=false,review=null,collapsed=new Set(),drag=null,pan={x:0,y:0},zoom=1,help=false,modal=null;
 let campaignId=saved.campaignId||'legacy',conversations=saved.conversations||[],viewingCommission=null,chatScroll=null,mobilePaletteOpen=false;
@@ -54,6 +56,11 @@ function commit(next,action){
   else if(guideStep===2&&['door','window','open'].includes(action))guideStep=3;
   else if(guideStep===3&&action==='object')guideStep=4;
 if(JSON.stringify(layout)===JSON.stringify(next)){render();return;}playtest.record('edit');undoStack.push(clone(layout));if(undoStack.length>80)undoStack.shift();redoStack=[];layout=next;review=null;gameAudio.play(action==='eraser'?'erase':action==='room'?'pencil':'place');persist();render();}
+async function enterGame(start){
+  interruptBoard('entry');
+  try{await gameEntry.run(start);}catch{toast('进入游戏失败，请重试');}
+  finally{playtest.context(screen==='game'&&!modal&&!gameEntry.busy&&!document.hidden);}
+}
 function archiveCurrentConversation(){conversations=archiveConversation(conversations,{campaignId,level,submissions});}
 function pastCommissions(){return completedCommissions(history,conversations,{campaignId,currentLevelId:level.id});}
 function loadGameLevel(next,{archive=true}={}){
@@ -223,7 +230,7 @@ function phoneHTML(){
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.2</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.3</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -237,7 +244,7 @@ function modalHTML(){
 }
 function portraitHintHTML(tutorialVisible=false){return portraitHintDismissed||tutorialVisible?'':`<aside class="portrait-hint" aria-label="横屏建议"><span>${icon('phone')}<strong>横屏更好画</strong></span><button data-action="dismiss-portrait-hint">继续竖屏</button></aside>`;}
 function render(){
-  interruptBoard('redraw');if(screen==='game'&&!playtestReady){playtest.begin({campaignId,level,completed:attempt.completed});playtestReady=true;}playtest.context(screen==='game'&&!modal&&!document.hidden);
+  interruptBoard('redraw');if(screen==='game'&&!playtestReady){playtest.begin({campaignId,level,completed:attempt.completed});playtestReady=true;}playtest.context(screen==='game'&&!modal&&!gameEntry.busy&&!document.hidden);
   if(screen==='menu'){$('#app').innerHTML=menuHTML()+modalHTML();return;}
   if(selectedId&&!selectedFurniture())selectedId=null;
   const check=evaluateLayout(level,layout);
@@ -270,6 +277,7 @@ function submit(){
   gameAudio.play(check.complete?'success':'error');persist();render();
 }
 document.addEventListener('click',async event=>{
+  if(gameEntry.busy)return;
   const soundButton=event.target.closest('button');
   if(soundButton&&!soundButton.disabled){const action=soundButton.dataset.action;if(action!=='submit'&&action!=='rotate')gameAudio.play(action==='phone'||action==='close-phone'||action==='next-task'?'phone':'click');}
   const oldCommission=event.target.closest('[data-history-id]');if(oldCommission){viewingCommission=pastCommissions().find(item=>item.id===oldCommission.dataset.historyId);if(viewingCommission){chatScroll=$('.chat').scrollTop;modal='history';drag=null;render();}return;}
@@ -287,11 +295,11 @@ document.addEventListener('click',async event=>{
   }
   const action=event.target.closest('[data-action]')?.dataset.action;
   switch(action){
-    case'start-game':screen='game';modal=null;if(!Object.keys(layout.cells).length)phone=true;render();break;
+    case'start-game':await enterGame(()=>{screen='game';modal=null;if(!Object.keys(layout.cells).length)phone=true;render();});break;
     case'main-menu':modal='return-menu';drag=null;hoverPoint=null;render();$('.return-dialog [autofocus]')?.focus();break;
     case'confirm-main-menu':generationRequest++;preparingCommission=false;screen='menu';phone=false;modal=null;hoverPoint=null;drag=null;persist();render();break;
     case'menu-settings':modal='settings';render();break;
-    case'new-game':generationRequest++;preparingCommission=false;localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;seenLessons=[];loadGameLevel(createOpeningLevel(),{archive:false});break;
+    case'new-game':await enterGame(()=>{generationRequest++;preparingCommission=false;localStorage.setItem('paper-studio:previous-draft',JSON.stringify({level,layout,hints,submissions,campaignId}));archiveCurrentConversation();campaignId=createId();tutorialStage=0;guideDone=false;guideStep=0;seenLessons=[];loadGameLevel(createOpeningLevel(),{archive:false});});break;
     case'close-settings':modal=null;render();break;
     case'undo':undo();break;case'redo':redo();break;
     case'furniture-tag':modal='furniture-tag';render();break;
@@ -457,7 +465,7 @@ function bindBoard(){
   const isInterface=target=>!!target.closest('.requirements,.requirements-scrollbar,button,.tutorial-anchor,.range-explanation,.portrait-hint');
   surface.addEventListener('contextmenu',event=>{if(!isInterface(event.target))event.preventDefault();});
   surface.addEventListener('pointerdown',event=>{
-    if(isInterface(event.target)||phone||modal||event.button!==0&&event.button!==1&&event.button!==2)return;
+    if(gameEntry.busy||isInterface(event.target)||phone||modal||event.button!==0&&event.button!==1&&event.button!==2)return;
     if(event.pointerType==='touch'){
       if(gestures.phase==='camera'){
         if(!pinch){const r=svg.getBoundingClientRect();pinch=beginTouchCamera(gestures.points,pan,zoom,{x:r.x+r.width/2,y:r.y+r.height/2});drag=null;hoverPoint=null;$('#drawing-preview').innerHTML='';}
@@ -504,7 +512,7 @@ function bindBoard(){
   surface.addEventListener('lostpointercapture',event=>{if(gestures.has(event.pointerId)||drag?.pointerId===event.pointerId)interruptBoard('capture');});
   surface.addEventListener('auxclick',event=>{if(event.button===1)event.preventDefault();});
   surface.addEventListener('wheel',event=>{
-    if(phone||modal||drag)return;
+    if(gameEntry.busy||phone||modal||drag)return;
     if(event.target.closest('.tutorial-anchor,.range-explanation,.portrait-hint,.zoom-controls,.requirements-toggle'))return;
     const list=$('.requirements'),r=list?.getBoundingClientRect();
     // List scrolling wins inside its rectangle even when the plan is above it.
@@ -527,7 +535,7 @@ function interruptBoard(reason){
 for(const type of ['pointerdown','keydown','wheel'])document.addEventListener(type,()=>playtest.interact(),{capture:true,passive:true});
 document.addEventListener('pointerdown',event=>{
   if(event.pointerType!=='touch')return;
-  const eligible=screen==='game'&&!phone&&!modal&&!!event.target.closest('.canvas-wrap')&&!event.target.closest('.requirements,.requirements-scrollbar,button,.tutorial-anchor,.range-explanation,.portrait-hint');
+  const eligible=screen==='game'&&!gameEntry.busy&&!phone&&!modal&&!!event.target.closest('.canvas-wrap')&&!event.target.closest('.requirements,.requirements-scrollbar,button,.tutorial-anchor,.range-explanation,.portrait-hint');
   const phase=gestures.down(event.pointerId,{x:event.clientX,y:event.clientY},eligible);
   if(phase==='blocked')interruptBoard('interface');
 },{capture:true});
@@ -535,14 +543,15 @@ document.addEventListener('pointermove',event=>{if(event.buttons||event.pointerT
 document.addEventListener('pointerup',event=>{if(event.pointerType==='touch')gestures.up(event.pointerId);});
 document.addEventListener('pointercancel',event=>{if(gestures.has(event.pointerId)||drag?.pointerId===event.pointerId){interruptBoard('cancel');gestures.cancel(event.pointerId);}},{capture:true});
 window.addEventListener('blur',()=>{interruptBoard('blur');playtest.context(false);});
-window.addEventListener('focus',()=>playtest.context(screen==='game'&&!modal&&!document.hidden));
-document.addEventListener('visibilitychange',()=>{if(document.hidden)interruptBoard('hidden');playtest.context(screen==='game'&&!modal&&!document.hidden);});
+window.addEventListener('focus',()=>playtest.context(screen==='game'&&!modal&&!gameEntry.busy&&!document.hidden));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)interruptBoard('hidden');playtest.context(screen==='game'&&!modal&&!gameEntry.busy&&!document.hidden);});
 window.addEventListener('pagehide',()=>{interruptBoard('pagehide');playtest.context(false);});
 setInterval(()=>playtest.flush(),15000);
 function changeVolume(event){const key=event.target.dataset.volume;if(!['musicVolume','effectsVolume'].includes(key))return false;settings[key]=Number(event.target.value)/100;gameAudio.update(settings);const output=document.querySelector(`[data-volume-value="${key}"]`);if(output)output.textContent=event.target.value+'%';persist();return true;}
 document.addEventListener('input',changeVolume);
 document.addEventListener('change',event=>{if(changeVolume(event)){if(event.target.dataset.volume==='effectsVolume')gameAudio.play('click');}else if(event.target.dataset.setting){settings[event.target.dataset.setting]=event.target.checked;persist();}});
 document.addEventListener('keydown',event=>{
+  if(gameEntry.busy){event.preventDefault();return;}
   if(screen!=='game')return;
   if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
   if(event.key==='Escape'){if(modal){if(modal==='history')chatScroll=$('.chat')?.scrollTop??null;modal=null;viewingCommission=null;render();return;}phone=false;modal=null;drag=null;selectedId=null;hoverPoint=null;inspectedRule=null;render();return;}
