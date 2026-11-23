@@ -16,7 +16,8 @@ import {GRID_PIXELS,clampZoom,cameraBox,draggedPan,zoomedPan} from './camera.js'
 import {createGameAudio} from './audio.js';
 import {OBJECTS,directionBands,selectedObjects,clone,point,cellKey,edgeKey,edgeParts,allEdges,edgeInfo,boundaryKind,footprint,objectRoom,bounds,initialLayout,evaluateLayout,validateLevel,paintRoom,eraseRect,placeBoundary,placeObject,rotateObject} from './engine.js';
 import {hintRoom,createOpeningLevel,createCampaignLevel,paletteForLevel} from './levels.js';
-import {RATING_VERSION,newAttempt,recordHint,recordFailure,approveAttempt,restoreAttempt,restoreSubmissionRatings} from './rating.js';
+import {newAttempt,recordHint,restoreAttempt,restoreSubmissionRatings} from './rating.js';
+import {submissionStatus,submitDesign} from './submission.js';
 
 const $=selector=>document.querySelector(selector),esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const STORE='paper-studio:v1';
@@ -204,7 +205,7 @@ function guideHTML(){
   const [title,desktopText,button]=GUIDE[guideStep],text=compactScreen()?['按要求安排房间、门窗和家具，最后在任务手机提交。','点下方物件名称选择房间，再用单指拖画。每格1㎡；紧贴追加可画不规则形状。','展开下方物件列表，选择门窗或开放连接，再点墙边放置。蓝色斜纹表示固定窗。','选择家具后，可点“转向”再放下；用抓手点选已放家具，也能转向或拖动。','满足的要求会变绿。方位条件可点开查看范围，完成后点右上任务手机提交。'][guideStep]:desktopText;
   return `<section class="drawing-coach" aria-label="操作教学"><button class="coach-close" data-action="guide-skip" aria-label="收起教学">${icon('close')}</button><span class="coach-kicker">林工 · 操作提示 ${guideStep+1}/${GUIDE.length}</span><h2>${title}</h2><p>${text}</p>${guideStep===3?`<div class="rotate-demo">${objectIcon('singleBed',0)}<kbd>R / 右键</kbd>${objectIcon('singleBed',90)}</div>`:''}<div class="coach-actions">${guideStep>0?'<button data-action="guide-back">上一步</button>':'<button data-action="guide-skip">我已熟悉操作</button>'}<button class="primary" data-action="guide-next">${button}</button></div></section>`;
 }
-function phoneDockHTML(check){return `<aside class="desk-rail"><button class="phone-dock" data-action="phone" aria-label="打开任务手机" title="查看委托、求助和提交图纸"><span class="dock-speaker"></span><span class="dock-screen"><span class="dock-avatar">林</span><strong>林工</strong><span>${check.complete?'图纸画好了吗？':'有一份新委托'}</span></span><span class="dock-home"></span></button></aside>`;}
+function phoneDockHTML(check){return `<aside class="desk-rail"><button class="phone-dock" data-action="phone" aria-label="打开任务手机" title="查看委托、求助和提交图纸"><span class="dock-speaker"></span><span class="dock-screen"><span class="dock-avatar">林</span><strong>林工</strong><span>${submissionStatus(check,attempt,submissions).approved?'审核通过，领取新委托':check.complete?'图纸画好了吗？':'有一份新委托'}</span></span><span class="dock-home"></span></button></aside>`;}
 function ratingHTML(submission){
   const rating=submission.rating;
   if(!rating||rating.stars===null)return `<p class="rating-unknown">评分记录不完整，暂不显示星级。</p>`;
@@ -215,14 +216,14 @@ function submissionMessages(items,{historical=false}={}){return items.map(s=>`<d
 function previousThreadsHTML(records){return records.map(item=>`<section class="commission-thread"><div class="chat-divider">${esc(item.title)} · 已完成</div><div class="attachment"><small>设计需求</small><strong>${esc(item.title)}</strong><p>${item.level.rooms.length}个房间 · ${item.level.rules.filter(r=>!r.hidden).length}项要求</p><button data-history-id="${esc(item.id)}" aria-label="查看${esc(item.title)}历史图纸">查看图纸</button></div>${submissionMessages(item.submissions,{historical:true})}</section>`).join('');}
 function phoneHTML(){
   if(!phone)return '';
-  const passed=evaluateLayout(level,layout).complete&&submissions.at(-1)?.passed,previous=pastCommissions();
+  const status=submissionStatus(evaluateLayout(level,layout),attempt,submissions),passed=status.approved,previous=pastCommissions();
   const newMechanics=(level.progression?.newMechanics||[]).map(key=>MECHANIC_NAMES[key]).filter(Boolean);
   const introduced=(level.progression?.newFurniture||[]).filter(kind=>OBJECTS[kind]).map(kind=>OBJECTS[kind].name);
-  return `<div class="phone-shade" data-action="close-phone"></div><aside class="phone" aria-label="任务手机"><div class="phone-speaker"></div><div class="phone-status"><span>纸上事务所</span><span>●●● ▰</span></div><div class="phone-title"><div class="avatar">林</div><div><strong>林工</strong><small>设计部 · 项目委托</small></div>${previous.length?`<button class="chat-history-link" data-action="past-commissions">往期 ${previous.length}</button>`:''}<button class="icon-button" data-action="close-phone" aria-label="收起手机">${icon('close')}</button></div><div class="chat">${previousThreadsHTML(previous)}<div class="chat-divider current-commission">${esc(level.title)} · 当前委托</div><div class="message incoming">新委托已经发给你。先看需求，图纸画好后交给我审核。${level.planning?.label?`本次户型：${esc(level.planning.label)}。`:''}${Object.keys(level.fixedAreas||{}).length||level.fixedWalls?.length?'图上标出的固定结构不能占用或拆除。':''}${newMechanics.length?`本次新玩法：${esc(newMechanics.join('、'))}。查看图纸后有操作提示。`:''}${introduced.length?`这份委托新增${esc(introduced.join("、"))}，已加入铅笔物件列表。`:""}</div><div class="attachment"><small>设计需求 · ${esc(level.seed)}</small><strong>${esc(level.title)}</strong><p>${level.rooms.length}个房间 · ${level.rules.filter(r=>!r.hidden).length}项要求</p><button data-action="close-phone">查看图纸</button></div>${submissionMessages(submissions)}${passed?`<button class="primary next-task" data-action="next-task" ${preparingCommission?'disabled':''}>${preparingCommission?'正在准备委托…':'领取下一份委托'}</button>`:''}</div><div class="phone-compose"><button class="submit-design primary" data-action="submit">提交设计稿</button><button class="hint-button" data-action="hint" ${hints<=0||attempt.completed?'disabled':''}>求助 ${hints}/3</button><p>提交后由林工审核设计稿</p></div></aside>`;
+  return `<div class="phone-shade" data-action="close-phone"></div><aside class="phone" aria-label="任务手机"><div class="phone-speaker"></div><div class="phone-status"><span>纸上事务所</span><span>●●● ▰</span></div><div class="phone-title"><div class="avatar">林</div><div><strong>林工</strong><small>设计部 · 项目委托</small></div>${previous.length?`<button class="chat-history-link" data-action="past-commissions">往期 ${previous.length}</button>`:''}<button class="icon-button" data-action="close-phone" aria-label="收起手机">${icon('close')}</button></div><div class="chat">${previousThreadsHTML(previous)}<div class="chat-divider current-commission">${esc(level.title)} · 当前委托</div><div class="message incoming">新委托已经发给你。先看需求，图纸画好后交给我审核。${level.planning?.label?`本次户型：${esc(level.planning.label)}。`:''}${Object.keys(level.fixedAreas||{}).length||level.fixedWalls?.length?'图上标出的固定结构不能占用或拆除。':''}${newMechanics.length?`本次新玩法：${esc(newMechanics.join('、'))}。查看图纸后有操作提示。`:''}${introduced.length?`这份委托新增${esc(introduced.join("、"))}，已加入铅笔物件列表。`:""}</div><div class="attachment"><small>设计需求 · ${esc(level.seed)}</small><strong>${esc(level.title)}</strong><p>${level.rooms.length}个房间 · ${level.rules.filter(r=>!r.hidden).length}项要求</p><button data-action="close-phone">查看图纸</button></div>${submissionMessages(submissions)}${passed?`<button class="primary next-task" data-action="next-task" ${preparingCommission?'disabled':''}>${preparingCommission?'正在准备委托…':'领取下一份委托'}</button>`:''}</div><div class="phone-compose"><button class="submit-design primary" data-action="submit" ${status.canSubmit?'':'disabled'} aria-describedby="submission-status">${passed?'已审核通过':'提交设计稿'}</button><button class="hint-button" data-action="hint" ${hints<=0||attempt.completed?'disabled':''}>求助 ${hints}/3</button><p id="submission-status">${passed?'委托已完成，领取下一份委托吧':status.canSubmit?'图纸已符合要求，可以提交审核':'满足全部要求后可提交'}</p></div></aside>`;
 }
 function menuHTML(){
   const hasProgress=Object.keys(layout.cells).length>0||submissions.length>0||(level.chapter||1)>1;
-  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.0</span></main>`;
+  return `<main class="main-menu"><div class="menu-title" aria-label="纸上事务所"><span class="title-paper title-paper-one">纸上</span><span class="title-paper title-paper-two">事务所<i></i></span></div><nav class="menu-actions" aria-label="主菜单"><button class="menu-start" data-action="${hasProgress?'start-game':'new-game'}">${hasProgress?'继续游戏':'开始游戏'}</button>${hasProgress?'<button data-action="new-game">开始新游戏</button>':''}<button data-action="menu-settings">设置</button></nav><span class="menu-version">网页试玩版 · 0.10.1</span></main>`;
 }
 function modalHTML(){
   if(!modal)return '';
@@ -257,11 +258,9 @@ function render(){
 function undo(){if(!undoStack.length)return;playtest.record('undo');redoStack.push(clone(layout));layout=undoStack.pop();review=null;persist();render();}
 function redo(){if(!redoStack.length)return;playtest.record('redo');undoStack.push(clone(layout));layout=redoStack.pop();review=null;persist();render();}
 function submit(){
-  const check=evaluateLayout(level,layout),unmet=check.results.filter(r=>!r.ok),reason=check.errors[0]||(!Object.keys(layout.cells).length?'图纸还是空的，先规划房间吧。':`还有${unmet.length}项未满足：${unmet.slice(0,2).map(r=>r.text).join('；')}。`);
-  let rating=null;
-  if(check.complete){const approved=approveAttempt(attempt);attempt=approved.attempt;rating=approved.rating;}else attempt=recordFailure(attempt);
-  playtest.record(check.complete?'complete':'failure');
-  const item={version:submissions.length+1,passed:check.complete,reason,rating,scoringVersion:RATING_VERSION,complete:check.results.filter(r=>r.ok&&!level.rules.find(rule=>rule.id===r.id)?.hidden).length,total:level.rules.filter(r=>!r.hidden).length};submissions.push(item);review=item;if(check.complete&&level.chapter===1){guideDone=true;guideStep=null;}
+  const result=submitDesign(level,layout,{attempt,submissions});if(!result.accepted)return;
+  const {check,item}=result,rating=item.rating;attempt=result.attempt;
+  playtest.record('complete');submissions.push(item);review=item;if(level.chapter===1){guideDone=true;guideStep=null;}
   if(check.complete&&!history.some(h=>(h.campaignId||'legacy')===campaignId&&h.id===level.id&&h.version===submissions.length)){history.push({id:level.id,campaignId,version:submissions.length,title:level.title,seed:level.seed,rooms:level.rooms.length,level:clone(level),layout:clone(layout),rating:rating?clone(rating):null,at:new Date().toISOString()});}
   gameAudio.play(check.complete?'success':'error');persist();render();
 }
@@ -313,7 +312,7 @@ document.addEventListener('click',async event=>{
     case'close-modal':modal=null;render();break;
     case'close-history':modal=null;viewingCommission=null;chatScroll=$('.chat')?.scrollTop??chatScroll;render();break;
     case'next-task':{
-      if(preparingCommission||!submissions.at(-1)?.passed||!evaluateLayout(level,layout).complete)return;
+      if(preparingCommission||!submissionStatus(null,attempt,submissions).approved)return;
       preparingCommission=true;const request=++generationRequest,previousId=level.id,previousCampaign=campaignId;render();
       try{
         const avoidFingerprints=[level.generationFingerprint,...history.filter(h=>(h.campaignId||'legacy')===campaignId).map(h=>h.level?.generationFingerprint)].filter(Boolean);
